@@ -89,16 +89,25 @@ function bindEvents() {
 
   dom.exportPngBtn.addEventListener("click", onExportPng);
 
-  dom.dropZone.addEventListener("dragover", (event) => {
-    event.preventDefault();
-  });
+  dom.dropZone.addEventListener("dragover", onDragOver);
+  dom.dropZone.addEventListener("drop", onFileDrop);
+}
 
-  dom.dropZone.addEventListener("drop", async (event) => {
-    event.preventDefault();
-    const file = event.dataTransfer.files?.[0];
-    if (!file) return;
-    await loadFile(file);
-  });
+function onDragOver(event) {
+  event.preventDefault();
+}
+
+async function onFileDrop(event) {
+  event.preventDefault();
+  clearMessages();
+
+  const file = event.dataTransfer?.files?.[0];
+  if (!file) {
+    dom.importError.textContent = "Aucun fichier détecté dans le dépôt.";
+    return;
+  }
+
+  await loadFile(file);
 }
 
 function renderEmptyState() {
@@ -109,7 +118,27 @@ function renderEmptyState() {
   dom.sourceRowCount.textContent = "Lignes : —";
   dom.sourcePeriod.textContent = "Période : —";
 
+  dom.summaryTotalRows.textContent = "—";
+  dom.summaryFilteredRows.textContent = "—";
+  dom.summaryThresholdExcluded.textContent = "—";
+  dom.summaryInvalidExcluded.textContent = "—";
+  dom.summaryValidValues.textContent = "—";
+
+  dom.activeFiltersSummary.textContent = "—";
+  dom.statsCards.innerHTML = "";
+
+  dom.graphTitle.textContent = "—";
+  dom.graphSource.textContent = "—";
+  dom.graphAnalysisMeta.textContent = "—";
+  dom.graphExportMeta.textContent = "—";
+  dom.graphAnalysedCount.textContent = "—";
+  dom.graphVisibleCount.textContent = "—";
+  dom.graphHiddenCount.textContent = "—";
+  dom.graphUnit.textContent = "—";
+  dom.graphClassWidthOutput.textContent = "—";
+
   clearMessages();
+  clearCanvas();
 }
 
 function clearMessages() {
@@ -138,6 +167,7 @@ async function onLoadAnalyzeClicked() {
     dom.importError.textContent = "Aucun fichier CSV sélectionné.";
     return;
   }
+
   await loadFile(file);
 }
 
@@ -164,23 +194,6 @@ function onPastedCsvAnalyze() {
   loadAndAnalyze(csvText, "CSV collé");
 }
 
-function populateDynamicFilterControls() {
-  populateSelect(
-    dom.environmentSelect,
-    appState.filterOptions.environnements,
-    "tous",
-    "Tous"
-  );
-
-  populateSelect(
-    dom.laboratorySelect,
-    appState.filterOptions.laboratoires,
-    "tous",
-    "Tous"
-  );
-}
-
-
 function loadAndAnalyze(csvText, sourceName) {
   clearMessages();
 
@@ -195,20 +208,31 @@ function loadAndAnalyze(csvText, sourceName) {
 
     resetFiltersToDefault();
     resetGraphToDefault();
+
+    populateDynamicFilterControls();
     syncStateToControls();
-    renderLoadedStub(parseResult);
+    showLoadedLayout();
+    updateFilteredPreview(parseResult);
   } catch (error) {
     renderEmptyState();
     dom.importError.textContent = error.message || "Erreur de parsing du fichier CSV.";
   }
 }
 
-function renderLoadedStub(parseResult) {
-  showLoadedLayout();
-  populateDynamicFilterControls();
-  resetFiltersToDefault();
-  syncStateToControls();
-  updateFilteredPreview(parseResult);
+function populateDynamicFilterControls() {
+  populateSelect(
+    dom.environmentSelect,
+    appState.filterOptions.environnements,
+    "tous",
+    "Tous"
+  );
+
+  populateSelect(
+    dom.laboratorySelect,
+    appState.filterOptions.laboratoires,
+    "tous",
+    "Tous"
+  );
 }
 
 function populateSelect(selectElement, values, defaultValue, defaultLabel) {
@@ -231,6 +255,8 @@ function syncStateToControls() {
   dom.yearMinInput.value = appState.filters.anneeMin ?? "";
   dom.yearMaxInput.value = appState.filters.anneeMax ?? "";
   dom.measureLocationSelect.value = appState.filters.lieuMesure;
+  dom.environmentSelect.value = appState.filters.environnement;
+  dom.laboratorySelect.value = appState.filters.laboratoire;
   dom.casbSelect.value = appState.filters.casB;
   dom.casaThresholdEnabled.checked = appState.filters.seuilCasAActif;
   dom.casaThresholdInput.value = appState.filters.seuilCasA;
@@ -243,8 +269,10 @@ function syncStateToControls() {
 }
 
 function syncControlsToState() {
-  appState.filters.anneeMin = dom.yearMinInput.value === "" ? null : Number(dom.yearMinInput.value);
-  appState.filters.anneeMax = dom.yearMaxInput.value === "" ? null : Number(dom.yearMaxInput.value);
+  appState.filters.anneeMin =
+    dom.yearMinInput.value === "" ? null : Number(dom.yearMinInput.value);
+  appState.filters.anneeMax =
+    dom.yearMaxInput.value === "" ? null : Number(dom.yearMaxInput.value);
   appState.filters.lieuMesure = dom.measureLocationSelect.value;
   appState.filters.environnement = dom.environmentSelect.value || "tous";
   appState.filters.laboratoire = dom.laboratorySelect.value || "tous";
@@ -255,8 +283,10 @@ function syncControlsToState() {
   appState.analyse.variable = dom.analysisVariableSelect.value;
 
   appState.graph.mode = dom.graphModeSelect.value;
-  appState.graph.min = dom.graphMinInput.value === "" ? null : Number(dom.graphMinInput.value);
-  appState.graph.max = dom.graphMaxInput.value === "" ? null : Number(dom.graphMaxInput.value);
+  appState.graph.min =
+    dom.graphMinInput.value === "" ? null : Number(dom.graphMinInput.value);
+  appState.graph.max =
+    dom.graphMaxInput.value === "" ? null : Number(dom.graphMaxInput.value);
   appState.graph.nbClasses = Number(dom.graphClassesInput.value);
 }
 
@@ -272,25 +302,53 @@ function handleUiChange() {
   try {
     updateAnalysis();
   } catch (error) {
-    dom.analysisError.textContent = error.message || "Erreur pendant le calcul de l’analyse.";
+    dom.analysisError.textContent =
+      error.message || "Erreur pendant le calcul de l’analyse.";
   }
 }
 
+function updateAnalysis() {
   const filteredRows = applyUserFilters(appState.data, appState.filters);
 
+  const validityResult = getValidRowsForVariable(
+    filteredRows,
+    appState.analyse.variable,
+    appState.filters
+  );
+
+  const values = extractValues(
+    validityResult.validRows,
+    appState.analyse.variable
+  );
+
+  const stats = computeStats(values, appState.analyse.variable);
+  const histogram = computeHistogram(
+    values,
+    appState.graph,
+    appState.analyse.variable
+  );
+
   appState.results.filteredRows = filteredRows;
+  appState.results.validRows = validityResult.validRows;
+  appState.results.values = values;
+  appState.results.stats = stats;
+  appState.results.histogram = histogram;
+
   appState.results.counters.totalRows = appState.data.length;
   appState.results.counters.filteredRowsCount = filteredRows.length;
-  appState.results.counters.thresholdExcludedCount = 0;
-  appState.results.counters.invalidExcludedCount = 0;
-  appState.results.counters.validRowsCount = 0;
+  appState.results.counters.thresholdExcludedCount =
+    validityResult.thresholdExcludedCount;
+  appState.results.counters.invalidExcludedCount =
+    validityResult.invalidExcludedCount;
+  appState.results.counters.validRowsCount = validityResult.validRows.length;
 
   renderAnalysisPreview();
 }
 
 function updateFilteredPreview(parseResult) {
   const periodText =
-    appState.filterOptions.years.min != null && appState.filterOptions.years.max != null
+    appState.filterOptions.years.min != null &&
+    appState.filterOptions.years.max != null
       ? `${appState.filterOptions.years.min} – ${appState.filterOptions.years.max}`
       : "—";
 
@@ -299,6 +357,11 @@ function updateFilteredPreview(parseResult) {
   dom.sourcePeriod.textContent = `Période : ${periodText}`;
 
   appState.results.filteredRows = appState.data.slice();
+  appState.results.validRows = [];
+  appState.results.values = [];
+  appState.results.stats = null;
+  appState.results.histogram = null;
+
   appState.results.counters.totalRows = appState.data.length;
   appState.results.counters.filteredRowsCount = appState.data.length;
   appState.results.counters.thresholdExcludedCount = 0;
@@ -307,485 +370,11 @@ function updateFilteredPreview(parseResult) {
 
   dom.importMessage.textContent =
     `Fichier chargé avec succès. ${appState.data.length} lignes normalisées` +
-    (parseResult.invalidRowCount > 0 ? `, ${parseResult.invalidRowCount} lignes ignorées.` : ".");
+    (parseResult.invalidRowCount > 0
+      ? `, ${parseResult.invalidRowCount} lignes ignorées.`
+      : ".");
 
   renderAnalysisPreview();
-}
-
-function renderAnalysisPreview() {
-  dom.summaryTotalRows.textContent = String(appState.results.counters.totalRows);
-  dom.summaryFilteredRows.textContent = String(appState.results.counters.filteredRowsCount);
-  dom.summaryThresholdExcluded.textContent = String(appState.results.counters.thresholdExcludedCount);
-  dom.summaryInvalidExcluded.textContent = String(appState.results.counters.invalidExcludedCount);
-  dom.summaryValidValues.textContent = String(appState.results.counters.validRowsCount);
-
-  dom.activeFiltersSummary.textContent = buildActiveFiltersText();
-
-  dom.statsCards.innerHTML = `
-    <div class="stat-card">
-      <span class="stat-label">Statut</span>
-      <span class="stat-value">Filtres métier appliqués</span>
-    </div>
-    <div class="stat-card">
-      <span class="stat-label">Lignes retenues</span>
-      <span class="stat-value">${appState.results.counters.filteredRowsCount}</span>
-    </div>
-  `;
-
-  dom.analysisMessage.textContent =
-    appState.results.counters.filteredRowsCount > 0
-      ? "Filtres métier appliqués. La validité analytique et les statistiques seront branchées à l’étape suivante."
-      : "Aucune mesure ne correspond aux filtres sélectionnés.";
-
-  dom.graphTitle.textContent = "Histogramme — —";
-  dom.graphSource.textContent = `Source : ${appState.sourceName || "—"}`;
-  dom.graphAnalysisMeta.textContent = `Sous-ensemble après filtres : ${appState.results.counters.filteredRowsCount}`;
-  dom.graphExportMeta.textContent = "Statistiques Mesures Cartoradio";
-  dom.graphAnalysedCount.textContent = "0";
-  dom.graphVisibleCount.textContent = "0";
-  dom.graphHiddenCount.textContent = "0";
-  dom.graphUnit.textContent = "—";
-  dom.graphClassWidthOutput.textContent = "—";
-
-  clearCanvas();
-}
-
-function buildStatsCardsHtml(stats, variable) {
-  if (!stats || stats.count === 0) {
-    return `
-      <div class="stat-card">
-        <span class="stat-label">Statut</span>
-        <span class="stat-value">Aucune valeur</span>
-      </div>
-    `;
-  }
-
-  const unit = getVariableUnit(variable);
-  const showRms = isVmVariable(variable);
-
-  return `
-    <div class="stat-card">
-      <span class="stat-label">Effectif</span>
-      <span class="stat-value">${stats.count}</span>
-    </div>
-    <div class="stat-card">
-      <span class="stat-label">Minimum</span>
-      <span class="stat-value">${formatStatValue(stats.min, unit)}</span>
-    </div>
-    <div class="stat-card">
-      <span class="stat-label">Maximum</span>
-      <span class="stat-value">${formatStatValue(stats.max, unit)}</span>
-    </div>
-    <div class="stat-card">
-      <span class="stat-label">Médiane</span>
-      <span class="stat-value">${formatStatValue(stats.median, unit)}</span>
-    </div>
-    <div class="stat-card">
-      <span class="stat-label">Moyenne</span>
-      <span class="stat-value">${formatStatValue(stats.mean, unit)}</span>
-    </div>
-    ${
-      showRms
-        ? `
-    <div class="stat-card">
-      <span class="stat-label">Moyenne quadratique</span>
-      <span class="stat-value">${formatStatValue(stats.rms, unit)}</span>
-    </div>
-    `
-        : ""
-    }
-  `;
-}
-
-function getVariableLabel(variable) {
-  if (variable === "niveauGlobal") return "Exposition Cas A";
-  if (variable === "cumulCasB") return "Cumul Cas B";
-  if (variable === "ratioCasA_CasB") return "Cohérence Cas A / Cas B";
-  return "Grandeur inconnue";
-}
-
-function getVariableUnit(variable) {
-  if (variable === "ratioCasA_CasB") return "%";
-  return "V/m";
-}
-
-function formatNumber(value, decimals = 2) {
-  if (!Number.isFinite(value)) {
-    return "—";
-  }
-  return value.toFixed(decimals);
-}
-
-function formatStatValue(value, unit) {
-  if (!Number.isFinite(value)) {
-    return "—";
-  }
-
-  const decimals = unit === "%" ? 2 : 3;
-  return `${value.toFixed(decimals)} ${unit}`;
-}
-
-function buildShortGraphMeta() {
-  const parts = [];
-
-  if (
-    Number.isFinite(appState.filters.anneeMin) &&
-    Number.isFinite(appState.filters.anneeMax)
-  ) {
-    parts.push(`${appState.filters.anneeMin}–${appState.filters.anneeMax}`);
-  }
-
-  if (appState.filters.lieuMesure === "interieur") {
-    parts.push("En intérieur");
-  } else if (appState.filters.lieuMesure === "exterieur") {
-    parts.push("En extérieur");
-  } else {
-    parts.push("Lieu indifférent");
-  }
-
-  if (appState.filters.casB === "exists") {
-    parts.push("Cas B existe");
-  } else if (appState.filters.casB === "missing") {
-    parts.push("Cas B n’existe pas");
-  } else {
-    parts.push("Cas B indifférent");
-  }
-
-  if (appState.filters.seuilCasAActif) {
-    parts.push(`Seuil Cas A = ${appState.filters.seuilCasA} V/m`);
-  } else {
-    parts.push("Seuil Cas A désactivé");
-  }
-
-  return parts.join(" | ");
-}
-
-function buildActiveFiltersText() {
-  const lieuText =
-    appState.filters.lieuMesure === "indifferent"
-      ? "Indifférent"
-      : appState.filters.lieuMesure === "interieur"
-      ? "En intérieur"
-      : "En extérieur";
-
-  const casBText =
-    appState.filters.casB === "indifferent"
-      ? "Indifférent"
-      : appState.filters.casB === "exists"
-      ? "Cas B existe"
-      : "Cas B n’existe pas";
-
-  const seuilText = appState.filters.seuilCasAActif
-    ? `${appState.filters.seuilCasA} V/m`
-    : "désactivé";
-
-  return [
-    `Période : ${appState.filters.anneeMin ?? "—"} – ${appState.filters.anneeMax ?? "—"}`,
-    `Lieu : ${lieuText}`,
-    `Environnement : ${appState.filters.environnement === "tous" ? "Tous" : appState.filters.environnement}`,
-    `Laboratoire : ${appState.filters.laboratoire === "tous" ? "Tous" : appState.filters.laboratoire}`,
-    `Cas B : ${casBText}`,
-    `Seuil Cas A : ${seuilText}`,
-    `Grandeur : ${dom.analysisVariableSelect.options[dom.analysisVariableSelect.selectedIndex]?.textContent || "—"}`
-  ].join(" | ");
-}
-
-function handleGraphChange() {
-  clearMessages();
-  syncControlsToState();
-
-  if (!appState.results.values || appState.results.values.length === 0) {
-    dom.graphMessage.textContent = "Aucune valeur exploitable pour recalculer l’histogramme.";
-    return;
-  }
-
-  try {
-    const histogram = computeHistogram(
-      appState.results.values,
-      appState.graph,
-      appState.analyse.variable
-    );
-
-    appState.results.histogram = histogram;
-    renderAnalysisPreview();
-  } catch (error) {
-    dom.graphError.textContent = error.message || "Erreur pendant le recalcul de l’histogramme.";
-  }
-}
-
-function drawHistogramPreview(histogram, stats, variable) {
-  clearCanvas();
-
-  const canvas = dom.histogramCanvas;
-  const ctx = canvas.getContext("2d");
-
-  if (!histogram || !histogram.bins || histogram.bins.length === 0) {
-    ctx.fillStyle = "#666";
-    ctx.font = "16px Arial";
-    ctx.fillText("Aucune donnée à afficher.", 30, 40);
-    return;
-  }
-
-  const width = canvas.width;
-  const height = canvas.height;
-
-  const marginLeft = 70;
-  const marginRight = 20;
-  const marginTop = 30;
-  const marginBottom = 60;
-
-  const plotWidth = width - marginLeft - marginRight;
-  const plotHeight = height - marginTop - marginBottom;
-
-  const maxCount = Math.max(...histogram.bins.map(bin => bin.count), 1);
-  const binPixelWidth = plotWidth / histogram.bins.length;
-
-  ctx.clearRect(0, 0, width, height);
-  ctx.fillStyle = "#ffffff";
-  ctx.fillRect(0, 0, width, height);
-
-  ctx.strokeStyle = "#222";
-  ctx.lineWidth = 1;
-
-  ctx.beginPath();
-  ctx.moveTo(marginLeft, marginTop);
-  ctx.lineTo(marginLeft, height - marginBottom);
-  ctx.lineTo(width - marginRight, height - marginBottom);
-  ctx.stroke();
-
-  histogram.bins.forEach((bin, index) => {
-    const barHeight = (bin.count / maxCount) * plotHeight;
-    const x = marginLeft + index * binPixelWidth + 1;
-    const y = height - marginBottom - barHeight;
-    const w = Math.max(binPixelWidth - 2, 1);
-
-    ctx.fillStyle = "#8fb7ff";
-    ctx.fillRect(x, y, w, barHeight);
-  });
-
-  ctx.fillStyle = "#222";
-  ctx.font = "12px Arial";
-  ctx.fillText("Effectif", 10, marginTop + 10);
-  ctx.fillText(getVariableUnit(variable), width - 50, height - 20);
-
-  ctx.fillText("0", marginLeft - 18, height - marginBottom + 4);
-  ctx.fillText(String(maxCount), marginLeft - 35, marginTop + 4);
-
-  drawVerticalMarker(ctx, histogram, stats?.median, "#cc5500", "Méd.");
-  drawVerticalMarker(ctx, histogram, stats?.mean, "#007a3d", "Moy.");
-  if (isVmVariable(variable) && Number.isFinite(stats?.rms)) {
-    drawVerticalMarker(ctx, histogram, stats.rms, "#7b1fa2", "RMS");
-  }
-}
-
-function drawVerticalMarker(ctx, histogram, value, color, label) {
-  if (!Number.isFinite(value)) {
-    return;
-  }
-
-  if (value < histogram.graphMin || value > histogram.graphMax) {
-    return;
-  }
-
-  const canvas = dom.histogramCanvas;
-  const width = canvas.width;
-  const height = canvas.height;
-
-  const marginLeft = 70;
-  const marginRight = 20;
-  const marginTop = 30;
-  const marginBottom = 60;
-
-  const plotWidth = width - marginLeft - marginRight;
-  const x =
-    marginLeft +
-    ((value - histogram.graphMin) / (histogram.graphMax - histogram.graphMin)) * plotWidth;
-
-  ctx.strokeStyle = color;
-  ctx.lineWidth = 2;
-  ctx.beginPath();
-  ctx.moveTo(x, marginTop);
-  ctx.lineTo(x, height - marginBottom);
-  ctx.stroke();
-
-  ctx.fillStyle = color;
-  ctx.font = "12px Arial";
-  ctx.fillText(label, x + 4, marginTop + 12);
-}
-
-function drawHistogramPreview(histogram, stats, variable) {
-  clearCanvas();
-
-  const canvas = dom.histogramCanvas;
-  const ctx = canvas.getContext("2d");
-
-  if (!histogram || !histogram.bins || histogram.bins.length === 0) {
-    ctx.fillStyle = "#666";
-    ctx.font = "16px Arial";
-    ctx.fillText("Aucune donnée à afficher.", 30, 40);
-    return;
-  }
-
-  const width = canvas.width;
-  const height = canvas.height;
-
-  const marginLeft = 70;
-  const marginRight = 20;
-  const marginTop = 30;
-  const marginBottom = 60;
-
-  const plotWidth = width - marginLeft - marginRight;
-  const plotHeight = height - marginTop - marginBottom;
-
-  const maxCount = Math.max(...histogram.bins.map(bin => bin.count), 1);
-  const binPixelWidth = plotWidth / histogram.bins.length;
-
-  ctx.clearRect(0, 0, width, height);
-  ctx.fillStyle = "#ffffff";
-  ctx.fillRect(0, 0, width, height);
-
-  ctx.strokeStyle = "#222";
-  ctx.lineWidth = 1;
-
-  ctx.beginPath();
-  ctx.moveTo(marginLeft, marginTop);
-  ctx.lineTo(marginLeft, height - marginBottom);
-  ctx.lineTo(width - marginRight, height - marginBottom);
-  ctx.stroke();
-
-  histogram.bins.forEach((bin, index) => {
-    const barHeight = (bin.count / maxCount) * plotHeight;
-    const x = marginLeft + index * binPixelWidth + 1;
-    const y = height - marginBottom - barHeight;
-    const w = Math.max(binPixelWidth - 2, 1);
-
-    ctx.fillStyle = "#8fb7ff";
-    ctx.fillRect(x, y, w, barHeight);
-  });
-
-  ctx.fillStyle = "#222";
-  ctx.font = "12px Arial";
-  ctx.fillText("Effectif", 10, marginTop + 10);
-  ctx.fillText(getVariableUnit(variable), width - 50, height - 20);
-
-  ctx.fillText("0", marginLeft - 18, height - marginBottom + 4);
-  ctx.fillText(String(maxCount), marginLeft - 35, marginTop + 4);
-
-  drawVerticalMarker(ctx, histogram, stats?.median, "#cc5500", "Méd.");
-  drawVerticalMarker(ctx, histogram, stats?.mean, "#007a3d", "Moy.");
-  if (isVmVariable(variable) && Number.isFinite(stats?.rms)) {
-    drawVerticalMarker(ctx, histogram, stats.rms, "#7b1fa2", "RMS");
-  }
-}
-
-function onResetGraph() {
-  resetGraphToDefault();
-  syncStateToControls();
-
-  if (appState.results.values && appState.results.values.length > 0) {
-    handleGraphChange();
-  } else {
-    clearCanvas();
-    dom.graphMessage.textContent = "Affichage du graphique réinitialisé.";
-  }
-}
-
-function buildShortGraphMeta() {
-  const parts = [];
-
-  if (
-    Number.isFinite(appState.filters.anneeMin) &&
-    Number.isFinite(appState.filters.anneeMax)
-  ) {
-    parts.push(`${appState.filters.anneeMin}–${appState.filters.anneeMax}`);
-  }
-
-  if (appState.filters.lieuMesure === "interieur") {
-    parts.push("En intérieur");
-  } else if (appState.filters.lieuMesure === "exterieur") {
-    parts.push("En extérieur");
-  } else {
-    parts.push("Lieu indifférent");
-  }
-
-  if (appState.filters.casB === "exists") {
-    parts.push("Cas B existe");
-  } else if (appState.filters.casB === "missing") {
-    parts.push("Cas B n’existe pas");
-  } else {
-    parts.push("Cas B indifférent");
-  }
-
-  if (appState.filters.seuilCasAActif) {
-    parts.push(`Seuil Cas A = ${appState.filters.seuilCasA} V/m`);
-  } else {
-    parts.push("Seuil Cas A désactivé");
-  }
-
-  return parts.join(" | ");
-}
-
-function getVariableLabel(variable) {
-  if (variable === "niveauGlobal") return "Exposition Cas A";
-  if (variable === "cumulCasB") return "Cumul Cas B";
-  if (variable === "ratioCasA_CasB") return "Cohérence Cas A / Cas B";
-  return "Grandeur inconnue";
-}
-
-function getVariableUnit(variable) {
-  if (variable === "ratioCasA_CasB") return "%";
-  return "V/m";
-}
-
-function formatNumber(value, decimals = 2) {
-  if (!Number.isFinite(value)) {
-    return "—";
-  }
-  return value.toFixed(decimals);
-}
-
-function formatStatValue(value, unit) {
-  if (!Number.isFinite(value)) {
-    return "—";
-  }
-
-  const decimals = unit === "%" ? 2 : 3;
-  return `${value.toFixed(decimals)} ${unit}`;
-}
-
-function drawVerticalMarker(ctx, histogram, value, color, label) {
-  if (!Number.isFinite(value)) {
-    return;
-  }
-
-  if (value < histogram.graphMin || value > histogram.graphMax) {
-    return;
-  }
-
-  const canvas = dom.histogramCanvas;
-  const width = canvas.width;
-  const height = canvas.height;
-
-  const marginLeft = 70;
-  const marginRight = 20;
-  const marginTop = 30;
-  const marginBottom = 60;
-
-  const plotWidth = width - marginLeft - marginRight;
-  const x =
-    marginLeft +
-    ((value - histogram.graphMin) / (histogram.graphMax - histogram.graphMin)) * plotWidth;
-
-  ctx.strokeStyle = color;
-  ctx.lineWidth = 2;
-  ctx.beginPath();
-  ctx.moveTo(x, marginTop);
-  ctx.lineTo(x, height - marginBottom);
-  ctx.stroke();
-
-  ctx.fillStyle = color;
-  ctx.font = "12px Arial";
-  ctx.fillText(label, x + 4, marginTop + 12);
 }
 
 function renderAnalysisPreview() {
@@ -793,31 +382,52 @@ function renderAnalysisPreview() {
   const histogram = appState.results.histogram;
 
   dom.summaryTotalRows.textContent = String(appState.results.counters.totalRows);
-  dom.summaryFilteredRows.textContent = String(appState.results.counters.filteredRowsCount);
-  dom.summaryThresholdExcluded.textContent = String(appState.results.counters.thresholdExcludedCount);
-  dom.summaryInvalidExcluded.textContent = String(appState.results.counters.invalidExcludedCount);
-  dom.summaryValidValues.textContent = String(appState.results.counters.validRowsCount);
+  dom.summaryFilteredRows.textContent = String(
+    appState.results.counters.filteredRowsCount
+  );
+  dom.summaryThresholdExcluded.textContent = String(
+    appState.results.counters.thresholdExcludedCount
+  );
+  dom.summaryInvalidExcluded.textContent = String(
+    appState.results.counters.invalidExcludedCount
+  );
+  dom.summaryValidValues.textContent = String(
+    appState.results.counters.validRowsCount
+  );
 
   dom.activeFiltersSummary.textContent = buildActiveFiltersText();
-
-  dom.statsCards.innerHTML = buildStatsCardsHtml(stats, appState.analyse.variable);
+  dom.statsCards.innerHTML = buildStatsCardsHtml(
+    stats,
+    appState.analyse.variable
+  );
 
   if (appState.results.counters.filteredRowsCount === 0) {
-    dom.analysisMessage.textContent = "Aucune mesure ne correspond aux filtres sélectionnés.";
+    dom.analysisMessage.textContent =
+      "Aucune mesure ne correspond aux filtres sélectionnés.";
   } else if (appState.results.counters.validRowsCount === 0) {
-    dom.analysisMessage.textContent = "Aucune valeur exploitable pour la grandeur sélectionnée.";
+    dom.analysisMessage.textContent =
+      "Aucune valeur exploitable pour la grandeur sélectionnée.";
   } else {
     dom.analysisMessage.textContent = "Analyse calculée avec succès.";
   }
 
-  dom.graphTitle.textContent = `Histogramme — ${getVariableLabel(appState.analyse.variable)}`;
+  dom.graphTitle.textContent = `Histogramme — ${getVariableLabel(
+    appState.analyse.variable
+  )}`;
   dom.graphSource.textContent = `Source : ${appState.sourceName || "—"}`;
-  dom.graphAnalysisMeta.textContent =
-    `N = ${appState.results.counters.validRowsCount} | ${buildShortGraphMeta()}`;
+  dom.graphAnalysisMeta.textContent = `N = ${
+    appState.results.counters.validRowsCount
+  } | ${buildShortGraphMeta()}`;
   dom.graphExportMeta.textContent = "Statistiques Mesures Cartoradio";
-  dom.graphAnalysedCount.textContent = String(appState.results.counters.validRowsCount);
-  dom.graphVisibleCount.textContent = histogram ? String(histogram.visibleCount) : "0";
-  dom.graphHiddenCount.textContent = histogram ? String(histogram.hiddenCount) : "0";
+  dom.graphAnalysedCount.textContent = String(
+    appState.results.counters.validRowsCount
+  );
+  dom.graphVisibleCount.textContent = histogram
+    ? String(histogram.visibleCount)
+    : "0";
+  dom.graphHiddenCount.textContent = histogram
+    ? String(histogram.hiddenCount)
+    : "0";
   dom.graphUnit.textContent = getVariableUnit(appState.analyse.variable);
   dom.graphClassWidthOutput.textContent =
     histogram && histogram.classWidth != null
@@ -874,32 +484,48 @@ function buildStatsCardsHtml(stats, variable) {
   `;
 }
 
-function getVariableLabel(variable) {
-  if (variable === "niveauGlobal") return "Exposition Cas A";
-  if (variable === "cumulCasB") return "Cumul Cas B";
-  if (variable === "ratioCasA_CasB") return "Cohérence Cas A / Cas B";
-  return "Grandeur inconnue";
-}
+function buildActiveFiltersText() {
+  const lieuText =
+    appState.filters.lieuMesure === "indifferent"
+      ? "Indifférent"
+      : appState.filters.lieuMesure === "interieur"
+      ? "En intérieur"
+      : "En extérieur";
 
-function getVariableUnit(variable) {
-  if (variable === "ratioCasA_CasB") return "%";
-  return "V/m";
-}
+  const casBText =
+    appState.filters.casB === "indifferent"
+      ? "Indifférent"
+      : appState.filters.casB === "exists"
+      ? "Cas B existe"
+      : "Cas B n’existe pas";
 
-function formatNumber(value, decimals = 2) {
-  if (!Number.isFinite(value)) {
-    return "—";
-  }
-  return value.toFixed(decimals);
-}
+  const seuilText = appState.filters.seuilCasAActif
+    ? `${appState.filters.seuilCasA} V/m`
+    : "désactivé";
 
-function formatStatValue(value, unit) {
-  if (!Number.isFinite(value)) {
-    return "—";
-  }
-
-  const decimals = unit === "%" ? 2 : 3;
-  return `${value.toFixed(decimals)} ${unit}`;
+  return [
+    `Période : ${appState.filters.anneeMin ?? "—"} – ${
+      appState.filters.anneeMax ?? "—"
+    }`,
+    `Lieu : ${lieuText}`,
+    `Environnement : ${
+      appState.filters.environnement === "tous"
+        ? "Tous"
+        : appState.filters.environnement
+    }`,
+    `Laboratoire : ${
+      appState.filters.laboratoire === "tous"
+        ? "Tous"
+        : appState.filters.laboratoire
+    }`,
+    `Cas B : ${casBText}`,
+    `Seuil Cas A : ${seuilText}`,
+    `Grandeur : ${
+      dom.analysisVariableSelect.options[
+        dom.analysisVariableSelect.selectedIndex
+      ]?.textContent || "—"
+    }`
+  ].join(" | ");
 }
 
 function buildShortGraphMeta() {
@@ -937,46 +563,50 @@ function buildShortGraphMeta() {
   return parts.join(" | ");
 }
 
-function updateAnalysis() {
-  const filteredRows = applyUserFilters(appState.data, appState.filters);
+function handleGraphChange() {
+  clearMessages();
+  syncControlsToState();
 
-  const validityResult = getValidRowsForVariable(
-    filteredRows,
-    appState.analyse.variable,
-    appState.filters
-  );
+  if (!appState.results.values || appState.results.values.length === 0) {
+    dom.graphMessage.textContent =
+      "Aucune valeur exploitable pour recalculer l’histogramme.";
+    return;
+  }
 
-  const values = extractValues(validityResult.validRows, appState.analyse.variable);
-  const stats = computeStats(values, appState.analyse.variable);
-  const histogram = computeHistogram(values, appState.graph, appState.analyse.variable);
+  try {
+    const histogram = computeHistogram(
+      appState.results.values,
+      appState.graph,
+      appState.analyse.variable
+    );
 
-  appState.results.filteredRows = filteredRows;
-  appState.results.validRows = validityResult.validRows;
-  appState.results.values = values;
-  appState.results.stats = stats;
-  appState.results.histogram = histogram;
-  appState.results.counters.totalRows = appState.data.length;
-  appState.results.counters.filteredRowsCount = filteredRows.length;
-  appState.results.counters.thresholdExcludedCount = validityResult.thresholdExcludedCount;
-  appState.results.counters.invalidExcludedCount = validityResult.invalidExcludedCount;
-  appState.results.counters.validRowsCount = validityResult.validRows.length;
-
-  renderAnalysisPreview();
+    appState.results.histogram = histogram;
+    renderAnalysisPreview();
+  } catch (error) {
+    dom.graphError.textContent =
+      error.message || "Erreur pendant le recalcul de l’histogramme.";
+  }
 }
-
-
 
 function onResetFilters() {
   resetFiltersToDefault();
   syncStateToControls();
-  handleUiChange();
+
+  if (appState.data.length > 0) {
+    handleUiChange();
+  }
 }
 
 function onResetGraph() {
   resetGraphToDefault();
   syncStateToControls();
-  dom.graphMessage.textContent = "Affichage du graphique réinitialisé.";
-  clearCanvas();
+
+  if (appState.results.values && appState.results.values.length > 0) {
+    handleGraphChange();
+  } else {
+    clearCanvas();
+    dom.graphMessage.textContent = "Affichage du graphique réinitialisé.";
+  }
 }
 
 function onNewFile() {
@@ -987,7 +617,135 @@ function onNewFile() {
 }
 
 function onExportPng() {
-  dom.graphMessage.textContent = "L’export PNG sera branché après le rendu du graphique.";
+  dom.graphMessage.textContent =
+    "L’export PNG sera branché après le rendu du graphique.";
+}
+
+function getVariableLabel(variable) {
+  if (variable === "niveauGlobal") return "Exposition Cas A";
+  if (variable === "cumulCasB") return "Cumul Cas B";
+  if (variable === "ratioCasA_CasB") return "Cohérence Cas A / Cas B";
+  return "Grandeur inconnue";
+}
+
+function getVariableUnit(variable) {
+  if (variable === "ratioCasA_CasB") return "%";
+  return "V/m";
+}
+
+function formatNumber(value, decimals = 2) {
+  if (!Number.isFinite(value)) {
+    return "—";
+  }
+  return value.toFixed(decimals);
+}
+
+function formatStatValue(value, unit) {
+  if (!Number.isFinite(value)) {
+    return "—";
+  }
+
+  const decimals = unit === "%" ? 2 : 3;
+  return `${value.toFixed(decimals)} ${unit}`;
+}
+
+function drawHistogramPreview(histogram, stats, variable) {
+  clearCanvas();
+
+  const canvas = dom.histogramCanvas;
+  const ctx = canvas.getContext("2d");
+
+  if (!histogram || !histogram.bins || histogram.bins.length === 0) {
+    ctx.fillStyle = "#666";
+    ctx.font = "16px Arial";
+    ctx.fillText("Aucune donnée à afficher.", 30, 40);
+    return;
+  }
+
+  const width = canvas.width;
+  const height = canvas.height;
+
+  const marginLeft = 70;
+  const marginRight = 20;
+  const marginTop = 30;
+  const marginBottom = 60;
+
+  const plotWidth = width - marginLeft - marginRight;
+  const plotHeight = height - marginTop - marginBottom;
+
+  const maxCount = Math.max(...histogram.bins.map(bin => bin.count), 1);
+  const binPixelWidth = plotWidth / histogram.bins.length;
+
+  ctx.clearRect(0, 0, width, height);
+  ctx.fillStyle = "#ffffff";
+  ctx.fillRect(0, 0, width, height);
+
+  ctx.strokeStyle = "#222";
+  ctx.lineWidth = 1;
+
+  ctx.beginPath();
+  ctx.moveTo(marginLeft, marginTop);
+  ctx.lineTo(marginLeft, height - marginBottom);
+  ctx.lineTo(width - marginRight, height - marginBottom);
+  ctx.stroke();
+
+  histogram.bins.forEach((bin, index) => {
+    const barHeight = (bin.count / maxCount) * plotHeight;
+    const x = marginLeft + index * binPixelWidth + 1;
+    const y = height - marginBottom - barHeight;
+    const w = Math.max(binPixelWidth - 2, 1);
+
+    ctx.fillStyle = "#8fb7ff";
+    ctx.fillRect(x, y, w, barHeight);
+  });
+
+  ctx.fillStyle = "#222";
+  ctx.font = "12px Arial";
+  ctx.fillText("Effectif", 10, marginTop + 10);
+  ctx.fillText(getVariableUnit(variable), width - 50, height - 20);
+
+  ctx.fillText("0", marginLeft - 18, height - marginBottom + 4);
+  ctx.fillText(String(maxCount), marginLeft - 35, marginTop + 4);
+
+  drawVerticalMarker(ctx, histogram, stats?.median, "#cc5500", "Méd.");
+  drawVerticalMarker(ctx, histogram, stats?.mean, "#007a3d", "Moy.");
+
+  if (isVmVariable(variable) && Number.isFinite(stats?.rms)) {
+    drawVerticalMarker(ctx, histogram, stats.rms, "#7b1fa2", "RMS");
+  }
+}
+
+function drawVerticalMarker(ctx, histogram, value, color, label) {
+  if (!Number.isFinite(value)) return;
+  if (value < histogram.graphMin || value > histogram.graphMax) return;
+
+  const canvas = dom.histogramCanvas;
+  const width = canvas.width;
+  const height = canvas.height;
+
+  const marginLeft = 70;
+  const marginRight = 20;
+  const marginTop = 30;
+  const marginBottom = 60;
+
+  const plotWidth = width - marginLeft - marginRight;
+
+  const x =
+    marginLeft +
+    ((value - histogram.graphMin) /
+      (histogram.graphMax - histogram.graphMin)) *
+      plotWidth;
+
+  ctx.strokeStyle = color;
+  ctx.lineWidth = 2;
+  ctx.beginPath();
+  ctx.moveTo(x, marginTop);
+  ctx.lineTo(x, height - marginBottom);
+  ctx.stroke();
+
+  ctx.fillStyle = color;
+  ctx.font = "12px Arial";
+  ctx.fillText(label, x + 4, marginTop + 12);
 }
 
 function clearCanvas() {
