@@ -181,3 +181,18 @@ button {
   color: #777;
   cursor: not-allowed;
 }
+
+.marker-label-median {
+  color: #cc5500;
+  font-weight: 600;
+}
+
+.marker-label-mean {
+  color: #007a3d;
+  font-weight: 600;
+}
+
+.marker-label-rms {
+  color: #7b1fa2;
+  font-weight: 600;
+}
