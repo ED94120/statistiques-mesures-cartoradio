@@ -269,6 +269,13 @@ function handleUiChange() {
     return;
   }
 
+  try {
+    updateAnalysis();
+  } catch (error) {
+    dom.analysisError.textContent = error.message || "Erreur pendant le calcul de l’analyse.";
+  }
+}
+
   const filteredRows = applyUserFilters(appState.data, appState.filters);
 
   appState.results.filteredRows = filteredRows;
@@ -343,6 +350,116 @@ function renderAnalysisPreview() {
   clearCanvas();
 }
 
+function buildStatsCardsHtml(stats, variable) {
+  if (!stats || stats.count === 0) {
+    return `
+      <div class="stat-card">
+        <span class="stat-label">Statut</span>
+        <span class="stat-value">Aucune valeur</span>
+      </div>
+    `;
+  }
+
+  const unit = getVariableUnit(variable);
+  const showRms = isVmVariable(variable);
+
+  return `
+    <div class="stat-card">
+      <span class="stat-label">Effectif</span>
+      <span class="stat-value">${stats.count}</span>
+    </div>
+    <div class="stat-card">
+      <span class="stat-label">Minimum</span>
+      <span class="stat-value">${formatStatValue(stats.min, unit)}</span>
+    </div>
+    <div class="stat-card">
+      <span class="stat-label">Maximum</span>
+      <span class="stat-value">${formatStatValue(stats.max, unit)}</span>
+    </div>
+    <div class="stat-card">
+      <span class="stat-label">Médiane</span>
+      <span class="stat-value">${formatStatValue(stats.median, unit)}</span>
+    </div>
+    <div class="stat-card">
+      <span class="stat-label">Moyenne</span>
+      <span class="stat-value">${formatStatValue(stats.mean, unit)}</span>
+    </div>
+    ${
+      showRms
+        ? `
+    <div class="stat-card">
+      <span class="stat-label">Moyenne quadratique</span>
+      <span class="stat-value">${formatStatValue(stats.rms, unit)}</span>
+    </div>
+    `
+        : ""
+    }
+  `;
+}
+
+function getVariableLabel(variable) {
+  if (variable === "niveauGlobal") return "Exposition Cas A";
+  if (variable === "cumulCasB") return "Cumul Cas B";
+  if (variable === "ratioCasA_CasB") return "Cohérence Cas A / Cas B";
+  return "Grandeur inconnue";
+}
+
+function getVariableUnit(variable) {
+  if (variable === "ratioCasA_CasB") return "%";
+  return "V/m";
+}
+
+function formatNumber(value, decimals = 2) {
+  if (!Number.isFinite(value)) {
+    return "—";
+  }
+  return value.toFixed(decimals);
+}
+
+function formatStatValue(value, unit) {
+  if (!Number.isFinite(value)) {
+    return "—";
+  }
+
+  const decimals = unit === "%" ? 2 : 3;
+  return `${value.toFixed(decimals)} ${unit}`;
+}
+
+function buildShortGraphMeta() {
+  const parts = [];
+
+  if (
+    Number.isFinite(appState.filters.anneeMin) &&
+    Number.isFinite(appState.filters.anneeMax)
+  ) {
+    parts.push(`${appState.filters.anneeMin}–${appState.filters.anneeMax}`);
+  }
+
+  if (appState.filters.lieuMesure === "interieur") {
+    parts.push("En intérieur");
+  } else if (appState.filters.lieuMesure === "exterieur") {
+    parts.push("En extérieur");
+  } else {
+    parts.push("Lieu indifférent");
+  }
+
+  if (appState.filters.casB === "exists") {
+    parts.push("Cas B existe");
+  } else if (appState.filters.casB === "missing") {
+    parts.push("Cas B n’existe pas");
+  } else {
+    parts.push("Cas B indifférent");
+  }
+
+  if (appState.filters.seuilCasAActif) {
+    parts.push(`Seuil Cas A = ${appState.filters.seuilCasA} V/m`);
+  } else {
+    parts.push("Seuil Cas A désactivé");
+  }
+
+  return parts.join(" | ");
+}
+
 function buildActiveFiltersText() {
   const lieuText =
     appState.filters.lieuMesure === "indifferent"
@@ -374,9 +491,480 @@ function buildActiveFiltersText() {
 }
 
 function handleGraphChange() {
+  clearMessages();
   syncControlsToState();
-  dom.graphMessage.textContent = "Le moteur d’histogramme sera branché à l’étape suivante.";
+
+  if (!appState.results.values || appState.results.values.length === 0) {
+    dom.graphMessage.textContent = "Aucune valeur exploitable pour recalculer l’histogramme.";
+    return;
+  }
+
+  try {
+    const histogram = computeHistogram(
+      appState.results.values,
+      appState.graph,
+      appState.analyse.variable
+    );
+
+    appState.results.histogram = histogram;
+    renderAnalysisPreview();
+  } catch (error) {
+    dom.graphError.textContent = error.message || "Erreur pendant le recalcul de l’histogramme.";
+  }
 }
+
+function drawHistogramPreview(histogram, stats, variable) {
+  clearCanvas();
+
+  const canvas = dom.histogramCanvas;
+  const ctx = canvas.getContext("2d");
+
+  if (!histogram || !histogram.bins || histogram.bins.length === 0) {
+    ctx.fillStyle = "#666";
+    ctx.font = "16px Arial";
+    ctx.fillText("Aucune donnée à afficher.", 30, 40);
+    return;
+  }
+
+  const width = canvas.width;
+  const height = canvas.height;
+
+  const marginLeft = 70;
+  const marginRight = 20;
+  const marginTop = 30;
+  const marginBottom = 60;
+
+  const plotWidth = width - marginLeft - marginRight;
+  const plotHeight = height - marginTop - marginBottom;
+
+  const maxCount = Math.max(...histogram.bins.map(bin => bin.count), 1);
+  const binPixelWidth = plotWidth / histogram.bins.length;
+
+  ctx.clearRect(0, 0, width, height);
+  ctx.fillStyle = "#ffffff";
+  ctx.fillRect(0, 0, width, height);
+
+  ctx.strokeStyle = "#222";
+  ctx.lineWidth = 1;
+
+  ctx.beginPath();
+  ctx.moveTo(marginLeft, marginTop);
+  ctx.lineTo(marginLeft, height - marginBottom);
+  ctx.lineTo(width - marginRight, height - marginBottom);
+  ctx.stroke();
+
+  histogram.bins.forEach((bin, index) => {
+    const barHeight = (bin.count / maxCount) * plotHeight;
+    const x = marginLeft + index * binPixelWidth + 1;
+    const y = height - marginBottom - barHeight;
+    const w = Math.max(binPixelWidth - 2, 1);
+
+    ctx.fillStyle = "#8fb7ff";
+    ctx.fillRect(x, y, w, barHeight);
+  });
+
+  ctx.fillStyle = "#222";
+  ctx.font = "12px Arial";
+  ctx.fillText("Effectif", 10, marginTop + 10);
+  ctx.fillText(getVariableUnit(variable), width - 50, height - 20);
+
+  ctx.fillText("0", marginLeft - 18, height - marginBottom + 4);
+  ctx.fillText(String(maxCount), marginLeft - 35, marginTop + 4);
+
+  drawVerticalMarker(ctx, histogram, stats?.median, "#cc5500", "Méd.");
+  drawVerticalMarker(ctx, histogram, stats?.mean, "#007a3d", "Moy.");
+  if (isVmVariable(variable) && Number.isFinite(stats?.rms)) {
+    drawVerticalMarker(ctx, histogram, stats.rms, "#7b1fa2", "RMS");
+  }
+}
+
+function drawVerticalMarker(ctx, histogram, value, color, label) {
+  if (!Number.isFinite(value)) {
+    return;
+  }
+
+  if (value < histogram.graphMin || value > histogram.graphMax) {
+    return;
+  }
+
+  const canvas = dom.histogramCanvas;
+  const width = canvas.width;
+  const height = canvas.height;
+
+  const marginLeft = 70;
+  const marginRight = 20;
+  const marginTop = 30;
+  const marginBottom = 60;
+
+  const plotWidth = width - marginLeft - marginRight;
+  const x =
+    marginLeft +
+    ((value - histogram.graphMin) / (histogram.graphMax - histogram.graphMin)) * plotWidth;
+
+  ctx.strokeStyle = color;
+  ctx.lineWidth = 2;
+  ctx.beginPath();
+  ctx.moveTo(x, marginTop);
+  ctx.lineTo(x, height - marginBottom);
+  ctx.stroke();
+
+  ctx.fillStyle = color;
+  ctx.font = "12px Arial";
+  ctx.fillText(label, x + 4, marginTop + 12);
+}
+
+function drawHistogramPreview(histogram, stats, variable) {
+  clearCanvas();
+
+  const canvas = dom.histogramCanvas;
+  const ctx = canvas.getContext("2d");
+
+  if (!histogram || !histogram.bins || histogram.bins.length === 0) {
+    ctx.fillStyle = "#666";
+    ctx.font = "16px Arial";
+    ctx.fillText("Aucune donnée à afficher.", 30, 40);
+    return;
+  }
+
+  const width = canvas.width;
+  const height = canvas.height;
+
+  const marginLeft = 70;
+  const marginRight = 20;
+  const marginTop = 30;
+  const marginBottom = 60;
+
+  const plotWidth = width - marginLeft - marginRight;
+  const plotHeight = height - marginTop - marginBottom;
+
+  const maxCount = Math.max(...histogram.bins.map(bin => bin.count), 1);
+  const binPixelWidth = plotWidth / histogram.bins.length;
+
+  ctx.clearRect(0, 0, width, height);
+  ctx.fillStyle = "#ffffff";
+  ctx.fillRect(0, 0, width, height);
+
+  ctx.strokeStyle = "#222";
+  ctx.lineWidth = 1;
+
+  ctx.beginPath();
+  ctx.moveTo(marginLeft, marginTop);
+  ctx.lineTo(marginLeft, height - marginBottom);
+  ctx.lineTo(width - marginRight, height - marginBottom);
+  ctx.stroke();
+
+  histogram.bins.forEach((bin, index) => {
+    const barHeight = (bin.count / maxCount) * plotHeight;
+    const x = marginLeft + index * binPixelWidth + 1;
+    const y = height - marginBottom - barHeight;
+    const w = Math.max(binPixelWidth - 2, 1);
+
+    ctx.fillStyle = "#8fb7ff";
+    ctx.fillRect(x, y, w, barHeight);
+  });
+
+  ctx.fillStyle = "#222";
+  ctx.font = "12px Arial";
+  ctx.fillText("Effectif", 10, marginTop + 10);
+  ctx.fillText(getVariableUnit(variable), width - 50, height - 20);
+
+  ctx.fillText("0", marginLeft - 18, height - marginBottom + 4);
+  ctx.fillText(String(maxCount), marginLeft - 35, marginTop + 4);
+
+  drawVerticalMarker(ctx, histogram, stats?.median, "#cc5500", "Méd.");
+  drawVerticalMarker(ctx, histogram, stats?.mean, "#007a3d", "Moy.");
+  if (isVmVariable(variable) && Number.isFinite(stats?.rms)) {
+    drawVerticalMarker(ctx, histogram, stats.rms, "#7b1fa2", "RMS");
+  }
+}
+
+function onResetGraph() {
+  resetGraphToDefault();
+  syncStateToControls();
+
+  if (appState.results.values && appState.results.values.length > 0) {
+    handleGraphChange();
+  } else {
+    clearCanvas();
+    dom.graphMessage.textContent = "Affichage du graphique réinitialisé.";
+  }
+}
+
+function buildShortGraphMeta() {
+  const parts = [];
+
+  if (
+    Number.isFinite(appState.filters.anneeMin) &&
+    Number.isFinite(appState.filters.anneeMax)
+  ) {
+    parts.push(`${appState.filters.anneeMin}–${appState.filters.anneeMax}`);
+  }
+
+  if (appState.filters.lieuMesure === "interieur") {
+    parts.push("En intérieur");
+  } else if (appState.filters.lieuMesure === "exterieur") {
+    parts.push("En extérieur");
+  } else {
+    parts.push("Lieu indifférent");
+  }
+
+  if (appState.filters.casB === "exists") {
+    parts.push("Cas B existe");
+  } else if (appState.filters.casB === "missing") {
+    parts.push("Cas B n’existe pas");
+  } else {
+    parts.push("Cas B indifférent");
+  }
+
+  if (appState.filters.seuilCasAActif) {
+    parts.push(`Seuil Cas A = ${appState.filters.seuilCasA} V/m`);
+  } else {
+    parts.push("Seuil Cas A désactivé");
+  }
+
+  return parts.join(" | ");
+}
+
+function getVariableLabel(variable) {
+  if (variable === "niveauGlobal") return "Exposition Cas A";
+  if (variable === "cumulCasB") return "Cumul Cas B";
+  if (variable === "ratioCasA_CasB") return "Cohérence Cas A / Cas B";
+  return "Grandeur inconnue";
+}
+
+function getVariableUnit(variable) {
+  if (variable === "ratioCasA_CasB") return "%";
+  return "V/m";
+}
+
+function formatNumber(value, decimals = 2) {
+  if (!Number.isFinite(value)) {
+    return "—";
+  }
+  return value.toFixed(decimals);
+}
+
+function formatStatValue(value, unit) {
+  if (!Number.isFinite(value)) {
+    return "—";
+  }
+
+  const decimals = unit === "%" ? 2 : 3;
+  return `${value.toFixed(decimals)} ${unit}`;
+}
+
+function drawVerticalMarker(ctx, histogram, value, color, label) {
+  if (!Number.isFinite(value)) {
+    return;
+  }
+
+  if (value < histogram.graphMin || value > histogram.graphMax) {
+    return;
+  }
+
+  const canvas = dom.histogramCanvas;
+  const width = canvas.width;
+  const height = canvas.height;
+
+  const marginLeft = 70;
+  const marginRight = 20;
+  const marginTop = 30;
+  const marginBottom = 60;
+
+  const plotWidth = width - marginLeft - marginRight;
+  const x =
+    marginLeft +
+    ((value - histogram.graphMin) / (histogram.graphMax - histogram.graphMin)) * plotWidth;
+
+  ctx.strokeStyle = color;
+  ctx.lineWidth = 2;
+  ctx.beginPath();
+  ctx.moveTo(x, marginTop);
+  ctx.lineTo(x, height - marginBottom);
+  ctx.stroke();
+
+  ctx.fillStyle = color;
+  ctx.font = "12px Arial";
+  ctx.fillText(label, x + 4, marginTop + 12);
+}
+
+function renderAnalysisPreview() {
+  const stats = appState.results.stats;
+  const histogram = appState.results.histogram;
+
+  dom.summaryTotalRows.textContent = String(appState.results.counters.totalRows);
+  dom.summaryFilteredRows.textContent = String(appState.results.counters.filteredRowsCount);
+  dom.summaryThresholdExcluded.textContent = String(appState.results.counters.thresholdExcludedCount);
+  dom.summaryInvalidExcluded.textContent = String(appState.results.counters.invalidExcludedCount);
+  dom.summaryValidValues.textContent = String(appState.results.counters.validRowsCount);
+
+  dom.activeFiltersSummary.textContent = buildActiveFiltersText();
+
+  dom.statsCards.innerHTML = buildStatsCardsHtml(stats, appState.analyse.variable);
+
+  if (appState.results.counters.filteredRowsCount === 0) {
+    dom.analysisMessage.textContent = "Aucune mesure ne correspond aux filtres sélectionnés.";
+  } else if (appState.results.counters.validRowsCount === 0) {
+    dom.analysisMessage.textContent = "Aucune valeur exploitable pour la grandeur sélectionnée.";
+  } else {
+    dom.analysisMessage.textContent = "Analyse calculée avec succès.";
+  }
+
+  dom.graphTitle.textContent = `Histogramme — ${getVariableLabel(appState.analyse.variable)}`;
+  dom.graphSource.textContent = `Source : ${appState.sourceName || "—"}`;
+  dom.graphAnalysisMeta.textContent =
+    `N = ${appState.results.counters.validRowsCount} | ${buildShortGraphMeta()}`;
+  dom.graphExportMeta.textContent = "Statistiques Mesures Cartoradio";
+  dom.graphAnalysedCount.textContent = String(appState.results.counters.validRowsCount);
+  dom.graphVisibleCount.textContent = histogram ? String(histogram.visibleCount) : "0";
+  dom.graphHiddenCount.textContent = histogram ? String(histogram.hiddenCount) : "0";
+  dom.graphUnit.textContent = getVariableUnit(appState.analyse.variable);
+  dom.graphClassWidthOutput.textContent =
+    histogram && histogram.classWidth != null
+      ? formatNumber(histogram.classWidth, 3)
+      : "—";
+
+  drawHistogramPreview(histogram, stats, appState.analyse.variable);
+}
+
+function buildStatsCardsHtml(stats, variable) {
+  if (!stats || stats.count === 0) {
+    return `
+      <div class="stat-card">
+        <span class="stat-label">Statut</span>
+        <span class="stat-value">Aucune valeur</span>
+      </div>
+    `;
+  }
+
+  const unit = getVariableUnit(variable);
+  const showRms = isVmVariable(variable);
+
+  return `
+    <div class="stat-card">
+      <span class="stat-label">Effectif</span>
+      <span class="stat-value">${stats.count}</span>
+    </div>
+    <div class="stat-card">
+      <span class="stat-label">Minimum</span>
+      <span class="stat-value">${formatStatValue(stats.min, unit)}</span>
+    </div>
+    <div class="stat-card">
+      <span class="stat-label">Maximum</span>
+      <span class="stat-value">${formatStatValue(stats.max, unit)}</span>
+    </div>
+    <div class="stat-card">
+      <span class="stat-label">Médiane</span>
+      <span class="stat-value">${formatStatValue(stats.median, unit)}</span>
+    </div>
+    <div class="stat-card">
+      <span class="stat-label">Moyenne</span>
+      <span class="stat-value">${formatStatValue(stats.mean, unit)}</span>
+    </div>
+    ${
+      showRms
+        ? `
+    <div class="stat-card">
+      <span class="stat-label">Moyenne quadratique</span>
+      <span class="stat-value">${formatStatValue(stats.rms, unit)}</span>
+    </div>
+    `
+        : ""
+    }
+  `;
+}
+
+function getVariableLabel(variable) {
+  if (variable === "niveauGlobal") return "Exposition Cas A";
+  if (variable === "cumulCasB") return "Cumul Cas B";
+  if (variable === "ratioCasA_CasB") return "Cohérence Cas A / Cas B";
+  return "Grandeur inconnue";
+}
+
+function getVariableUnit(variable) {
+  if (variable === "ratioCasA_CasB") return "%";
+  return "V/m";
+}
+
+function formatNumber(value, decimals = 2) {
+  if (!Number.isFinite(value)) {
+    return "—";
+  }
+  return value.toFixed(decimals);
+}
+
+function formatStatValue(value, unit) {
+  if (!Number.isFinite(value)) {
+    return "—";
+  }
+
+  const decimals = unit === "%" ? 2 : 3;
+  return `${value.toFixed(decimals)} ${unit}`;
+}
+
+function buildShortGraphMeta() {
+  const parts = [];
+
+  if (
+    Number.isFinite(appState.filters.anneeMin) &&
+    Number.isFinite(appState.filters.anneeMax)
+  ) {
+    parts.push(`${appState.filters.anneeMin}–${appState.filters.anneeMax}`);
+  }
+
+  if (appState.filters.lieuMesure === "interieur") {
+    parts.push("En intérieur");
+  } else if (appState.filters.lieuMesure === "exterieur") {
+    parts.push("En extérieur");
+  } else {
+    parts.push("Lieu indifférent");
+  }
+
+  if (appState.filters.casB === "exists") {
+    parts.push("Cas B existe");
+  } else if (appState.filters.casB === "missing") {
+    parts.push("Cas B n’existe pas");
+  } else {
+    parts.push("Cas B indifférent");
+  }
+
+  if (appState.filters.seuilCasAActif) {
+    parts.push(`Seuil Cas A = ${appState.filters.seuilCasA} V/m`);
+  } else {
+    parts.push("Seuil Cas A désactivé");
+  }
+
+  return parts.join(" | ");
+}
+
+function updateAnalysis() {
+  const filteredRows = applyUserFilters(appState.data, appState.filters);
+
+  const validityResult = getValidRowsForVariable(
+    filteredRows,
+    appState.analyse.variable,
+    appState.filters
+  );
+
+  const values = extractValues(validityResult.validRows, appState.analyse.variable);
+  const stats = computeStats(values, appState.analyse.variable);
+  const histogram = computeHistogram(values, appState.graph, appState.analyse.variable);
+
+  appState.results.filteredRows = filteredRows;
+  appState.results.validRows = validityResult.validRows;
+  appState.results.values = values;
+  appState.results.stats = stats;
+  appState.results.histogram = histogram;
+  appState.results.counters.totalRows = appState.data.length;
+  appState.results.counters.filteredRowsCount = filteredRows.length;
+  appState.results.counters.thresholdExcludedCount = validityResult.thresholdExcludedCount;
+  appState.results.counters.invalidExcludedCount = validityResult.invalidExcludedCount;
+  appState.results.counters.validRowsCount = validityResult.validRows.length;
+
+  renderAnalysisPreview();
+}
+
+
 
 function onResetFilters() {
   resetFiltersToDefault();
