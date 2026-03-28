@@ -929,6 +929,34 @@ function createHistogramMarkersPlugin(stats, histogram, variable) {
   };
 }
 
+function getReferenceHistogramMaxCount(values, variable, nbClasses) {
+  const cleanValues = values.filter(value => Number.isFinite(value));
+
+  if (cleanValues.length === 0) {
+    return 1;
+  }
+
+  const defaultRange = getDefaultGraphRangeForZoom(cleanValues, variable);
+
+  const referenceHistogram = computeHistogram(
+    cleanValues,
+    {
+      mode: "manual",
+      min: defaultRange.min,
+      max: defaultRange.max,
+      nbClasses
+    },
+    variable
+  );
+
+  const maxCount = Math.max(
+    ...referenceHistogram.bins.map(bin => bin.count),
+    1
+  );
+
+  return maxCount;
+}
+
 function drawHistogramPreview(histogram, stats, variable) {
   destroyHistogramChart();
 
@@ -947,14 +975,20 @@ function drawHistogramPreview(histogram, stats, variable) {
   const unit = getVariableUnit(variable);
 
   const labels = histogram.bins.map((bin, index) => {
-  const min = formatNumber(bin.x0, 3);
-  const max = formatNumber(bin.x1, 3);
-  const isLastBin = index === histogram.bins.length - 1;
+    const min = formatNumber(bin.x0, 3);
+    const max = formatNumber(bin.x1, 3);
+    const isLastBin = index === histogram.bins.length - 1;
 
-  return isLastBin ? `[${min} ; ${max}]` : `[${min} ; ${max}[`;
+    return isLastBin ? `[${min} ; ${max}]` : `[${min} ; ${max}[`;
   });
 
   const data = histogram.bins.map(bin => bin.count);
+
+  const yAxisMax = getReferenceHistogramMaxCount(
+    appState.results.values,
+    variable,
+    histogram.nbClasses
+  );
 
   histogramChart = new Chart(ctx, {
     type: "bar",
