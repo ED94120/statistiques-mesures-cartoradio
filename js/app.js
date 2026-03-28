@@ -269,6 +269,13 @@ function syncControlsToState() {
 function updateGraphModeUi() {
   const isAuto = dom.graphModeSelect.value === "auto";
 
+  if (isAuto) {
+    dom.graphMinInput.value = "";
+    dom.graphMaxInput.value = "";
+    appState.graph.min = null;
+    appState.graph.max = null;
+  }
+
   dom.graphMinInput.disabled = isAuto;
   dom.graphMaxInput.disabled = isAuto;
 }
