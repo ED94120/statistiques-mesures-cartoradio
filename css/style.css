@@ -144,8 +144,17 @@ button {
 }
 
 .chart-container {
+  position: relative;
+  width: 100%;
+  height: 480px;
   background: #fff;
-  overflow-x: auto;
+  overflow: hidden;
+}
+
+#histogram-canvas {
+  width: 100% !important;
+  height: 100% !important;
+  display: block;
 }
 
 .message {
@@ -164,4 +173,47 @@ button {
 
 .hidden {
   display: none !important;
+}
+
+#graph-min-input:disabled,
+#graph-max-input:disabled {
+  background-color: #f1f3f5;
+  color: #777;
+  cursor: not-allowed;
+}
+
+.marker-label-median {
+  color: #cc5500;
+  font-weight: 600;
+}
+
+.marker-label-mean {
+  color: #007a3d;
+  font-weight: 600;
+}
+
+.marker-label-rms {
+  color: #7b1fa2;
+  font-weight: 600;
+}
+
+#filter-actions {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+}
+
+#filter-actions button {
+  width: 100%;
+  box-sizing: border-box;
+}
+
+#apply-filters-btn {
+  background: #dff3df;
+  border: 1px solid #8fbe8f;
+  font-weight: 600;
+}
+
+#apply-filters-btn:hover {
+  background: #cfeccc;
 }

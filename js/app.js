@@ -1,4 +1,5 @@
 const dom = {};
+let histogramChart = null;
 
 document.addEventListener("DOMContentLoaded", initApp);
 
@@ -7,6 +8,7 @@ function initApp() {
   cacheDomReferences();
   bindEvents();
   renderEmptyState();
+  updateGraphModeUi();
 }
 
 function cacheDomReferences() {
@@ -15,9 +17,6 @@ function cacheDomReferences() {
 
   dom.fileInput = document.getElementById("csv-file-input");
   dom.dropZone = document.getElementById("drop-zone");
-  dom.csvTextInput = document.getElementById("csv-text-input");
-  dom.analyzePastedCsvBtn = document.getElementById("analyze-pasted-csv-btn");
-  dom.loadAnalyzeBtn = document.getElementById("load-analyze-btn");
   dom.newFileBtn = document.getElementById("new-file-btn");
 
   dom.sourceName = document.getElementById("source-name");
@@ -57,12 +56,20 @@ function cacheDomReferences() {
   dom.graphMaxInput = document.getElementById("graph-max-input");
   dom.graphClassesInput = document.getElementById("graph-classes-input");
   dom.graphClassWidthOutput = document.getElementById("graph-class-width-output");
+  dom.panLeftBtn = document.getElementById("pan-left-btn");
+  dom.panRightBtn = document.getElementById("pan-right-btn");
+  dom.zoomInBtn = document.getElementById("zoom-in-btn");
+  dom.zoomOutBtn = document.getElementById("zoom-out-btn");
+  dom.zoomYInBtn = document.getElementById("zoom-y-in-btn");
+  dom.zoomYOutBtn = document.getElementById("zoom-y-out-btn");
+  dom.resetYBtn = document.getElementById("reset-y-btn");
   dom.resetGraphBtn = document.getElementById("reset-graph-btn");
   dom.exportPngBtn = document.getElementById("export-png-btn");
 
   dom.graphTitle = document.getElementById("graph-title");
   dom.graphSource = document.getElementById("graph-source");
   dom.graphAnalysisMeta = document.getElementById("graph-analysis-meta");
+  dom.graphMarkersLegend = document.getElementById("graph-markers-legend");
   dom.graphExportMeta = document.getElementById("graph-export-meta");
   dom.graphAnalysedCount = document.getElementById("graph-analysed-count");
   dom.graphVisibleCount = document.getElementById("graph-visible-count");
@@ -74,8 +81,6 @@ function cacheDomReferences() {
 
 function bindEvents() {
   dom.fileInput.addEventListener("change", onFileSelected);
-  dom.analyzePastedCsvBtn.addEventListener("click", onPastedCsvAnalyze);
-  dom.loadAnalyzeBtn.addEventListener("click", onLoadAnalyzeClicked);
   dom.newFileBtn.addEventListener("click", onNewFile);
 
   dom.applyFiltersBtn.addEventListener("click", handleUiChange);
@@ -85,6 +90,13 @@ function bindEvents() {
   dom.graphMinInput.addEventListener("change", handleGraphChange);
   dom.graphMaxInput.addEventListener("change", handleGraphChange);
   dom.graphClassesInput.addEventListener("change", handleGraphChange);
+  dom.panLeftBtn.addEventListener("click", onPanLeft);
+  dom.panRightBtn.addEventListener("click", onPanRight);
+  dom.zoomInBtn.addEventListener("click", onZoomIn);
+  dom.zoomOutBtn.addEventListener("click", onZoomOut);
+  dom.zoomYInBtn.addEventListener("click", onZoomYIn);
+  dom.zoomYOutBtn.addEventListener("click", onZoomYOut);
+  dom.resetYBtn.addEventListener("click", onResetYAxis);
   dom.resetGraphBtn.addEventListener("click", onResetGraph);
 
   dom.exportPngBtn.addEventListener("click", onExportPng);
@@ -130,6 +142,7 @@ function renderEmptyState() {
   dom.graphTitle.textContent = "—";
   dom.graphSource.textContent = "—";
   dom.graphAnalysisMeta.textContent = "—";
+  dom.graphMarkersLegend.innerHTML = "—";
   dom.graphExportMeta.textContent = "—";
   dom.graphAnalysedCount.textContent = "—";
   dom.graphVisibleCount.textContent = "—";
@@ -161,16 +174,6 @@ async function onFileSelected(event) {
   await loadFile(file);
 }
 
-async function onLoadAnalyzeClicked() {
-  const file = dom.fileInput.files?.[0];
-  if (!file) {
-    dom.importError.textContent = "Aucun fichier CSV sélectionné.";
-    return;
-  }
-
-  await loadFile(file);
-}
-
 async function loadFile(file) {
   clearMessages();
 
@@ -182,17 +185,6 @@ async function loadFile(file) {
   }
 }
 
-function onPastedCsvAnalyze() {
-  clearMessages();
-
-  const csvText = dom.csvTextInput.value.trim();
-  if (!csvText) {
-    dom.importError.textContent = "Le contenu CSV collé est vide.";
-    return;
-  }
-
-  loadAndAnalyze(csvText, "CSV collé");
-}
 
 function loadAndAnalyze(csvText, sourceName) {
   clearMessages();
@@ -266,6 +258,7 @@ function syncStateToControls() {
   dom.graphMinInput.value = appState.graph.min ?? "";
   dom.graphMaxInput.value = appState.graph.max ?? "";
   dom.graphClassesInput.value = appState.graph.nbClasses;
+  updateGraphModeUi();
 }
 
 function syncControlsToState() {
@@ -288,6 +281,20 @@ function syncControlsToState() {
   appState.graph.max =
     dom.graphMaxInput.value === "" ? null : Number(dom.graphMaxInput.value);
   appState.graph.nbClasses = Number(dom.graphClassesInput.value);
+}
+
+function updateGraphModeUi() {
+  const isAuto = dom.graphModeSelect.value === "auto";
+
+  if (isAuto) {
+    dom.graphMinInput.value = "";
+    dom.graphMaxInput.value = "";
+    appState.graph.min = null;
+    appState.graph.max = null;
+  }
+
+  dom.graphMinInput.disabled = isAuto;
+  dom.graphMaxInput.disabled = isAuto;
 }
 
 function handleUiChange() {
@@ -342,6 +349,8 @@ function updateAnalysis() {
     validityResult.invalidExcludedCount;
   appState.results.counters.validRowsCount = validityResult.validRows.length;
 
+  appState.graph.yDisplayMax = null;
+
   renderAnalysisPreview();
 }
 
@@ -375,6 +384,26 @@ function updateFilteredPreview(parseResult) {
       : ".");
 
   renderAnalysisPreview();
+}
+
+function buildGraphMarkersLegend(stats, variable) {
+  if (!stats || !Number.isFinite(stats.count) || stats.count === 0) {
+    return "Repères statistiques : —";
+  }
+
+  const unit = getVariableUnit(variable);
+  const parts = [
+    `<span class="marker-label marker-label-median">Médiane : ${formatStatValue(stats.median, unit)}</span>`,
+    `<span class="marker-label marker-label-mean">Moyenne : ${formatStatValue(stats.mean, unit)}</span>`
+  ];
+
+  if (isVmVariable(variable) && Number.isFinite(stats.rms)) {
+    parts.push(
+      `<span class="marker-label marker-label-rms">RMS : ${formatStatValue(stats.rms, unit)}</span>`
+    );
+  }
+
+  return parts.join(" | ");
 }
 
 function renderAnalysisPreview() {
@@ -418,6 +447,10 @@ function renderAnalysisPreview() {
   dom.graphAnalysisMeta.textContent = `N = ${
     appState.results.counters.validRowsCount
   } | ${buildShortGraphMeta()}`;
+    dom.graphMarkersLegend.innerHTML = buildGraphMarkersLegend(
+    stats,
+    appState.analyse.variable
+  );
   dom.graphExportMeta.textContent = "Statistiques Mesures Cartoradio";
   dom.graphAnalysedCount.textContent = String(
     appState.results.counters.validRowsCount
@@ -566,6 +599,7 @@ function buildShortGraphMeta() {
 function handleGraphChange() {
   clearMessages();
   syncControlsToState();
+  updateGraphModeUi();
 
   if (!appState.results.values || appState.results.values.length === 0) {
     dom.graphMessage.textContent =
@@ -597,8 +631,254 @@ function onResetFilters() {
   }
 }
 
+function onPanLeft() {
+  panHistogram(-0.25);
+}
+
+function onPanRight() {
+  panHistogram(0.25);
+}
+
+function panHistogram(relativeShift) {
+  clearMessages();
+
+  if (!appState.results.values || appState.results.values.length === 0) {
+    dom.graphMessage.textContent = "Aucune valeur exploitable pour déplacer l’affichage.";
+    return;
+  }
+
+  const currentHistogram = appState.results.histogram;
+  if (
+    !currentHistogram ||
+    !Number.isFinite(currentHistogram.graphMin) ||
+    !Number.isFinite(currentHistogram.graphMax)
+  ) {
+    dom.graphError.textContent = "Plage de graphique indisponible.";
+    return;
+  }
+
+  const values = appState.results.values.filter(value => Number.isFinite(value));
+  if (values.length === 0) {
+    dom.graphMessage.textContent = "Aucune valeur exploitable pour déplacer l’affichage.";
+    return;
+  }
+
+  const baseRange = getDefaultGraphRangeForZoom(values, appState.analyse.variable);
+
+  const currentMin = currentHistogram.graphMin;
+  const currentMax = currentHistogram.graphMax;
+  const span = currentMax - currentMin;
+
+  if (!(span > 0)) {
+    dom.graphError.textContent = "Plage de déplacement invalide.";
+    return;
+  }
+
+  const shift = span * relativeShift;
+
+  let newMin = currentMin + shift;
+  let newMax = currentMax + shift;
+
+  if (newMin < baseRange.min) {
+    newMin = baseRange.min;
+    newMax = newMin + span;
+  }
+
+  if (newMax > baseRange.max) {
+    newMax = baseRange.max;
+    newMin = newMax - span;
+  }
+
+  newMin = Math.max(newMin, baseRange.min);
+  newMax = Math.min(newMax, baseRange.max);
+
+  if (!(newMax > newMin)) {
+    dom.graphError.textContent = "Impossible de déplacer l’affichage.";
+    return;
+  }
+
+  appState.graph.mode = "manual";
+  appState.graph.min = newMin;
+  appState.graph.max = newMax;
+
+  syncStateToControls();
+  updateGraphModeUi();
+
+  try {
+    const histogram = computeHistogram(
+      appState.results.values,
+      appState.graph,
+      appState.analyse.variable
+    );
+
+    appState.results.histogram = histogram;
+    renderAnalysisPreview();
+  } catch (error) {
+    dom.graphError.textContent =
+      error.message || "Erreur pendant le déplacement de l’affichage.";
+  }
+}
+
+function onZoomIn() {
+  zoomHistogram(0.5);
+}
+
+function onZoomOut() {
+  zoomHistogram(2);
+}
+
+function zoomHistogram(factor) {
+  clearMessages();
+
+  if (!appState.results.values || appState.results.values.length === 0) {
+    dom.graphMessage.textContent = "Aucune valeur exploitable pour appliquer un zoom.";
+    return;
+  }
+
+  const currentHistogram = appState.results.histogram;
+  if (
+    !currentHistogram ||
+    !Number.isFinite(currentHistogram.graphMin) ||
+    !Number.isFinite(currentHistogram.graphMax)
+  ) {
+    dom.graphError.textContent = "Plage de graphique indisponible.";
+    return;
+  }
+
+  const values = appState.results.values.filter(value => Number.isFinite(value));
+  if (values.length === 0) {
+    dom.graphMessage.textContent = "Aucune valeur exploitable pour appliquer un zoom.";
+    return;
+  }
+
+  const baseRange = getDefaultGraphRangeForZoom(values, appState.analyse.variable);
+
+  const currentMin = currentHistogram.graphMin;
+  const currentMax = currentHistogram.graphMax;
+  const currentSpan = currentMax - currentMin;
+
+  if (!(currentSpan > 0)) {
+    dom.graphError.textContent = "Plage de zoom invalide.";
+    return;
+  }
+
+  const center = (currentMin + currentMax) / 2;
+  let newSpan = currentSpan * factor;
+
+  const minSpan = Math.max((baseRange.max - baseRange.min) / 1000, 0.0001);
+  const maxSpan = baseRange.max - baseRange.min;
+
+  newSpan = Math.max(newSpan, minSpan);
+  newSpan = Math.min(newSpan, maxSpan);
+
+  let newMin = center - newSpan / 2;
+  let newMax = center + newSpan / 2;
+
+  if (newMin < baseRange.min) {
+    newMin = baseRange.min;
+    newMax = newMin + newSpan;
+  }
+
+  if (newMax > baseRange.max) {
+    newMax = baseRange.max;
+    newMin = newMax - newSpan;
+  }
+
+  newMin = Math.max(newMin, baseRange.min);
+  newMax = Math.min(newMax, baseRange.max);
+
+  if (!(newMax > newMin)) {
+    dom.graphError.textContent = "Impossible d’appliquer le zoom.";
+    return;
+  }
+
+  appState.graph.mode = "manual";
+  appState.graph.min = newMin;
+  appState.graph.max = newMax;
+
+  syncStateToControls();
+  updateGraphModeUi();
+
+  try {
+    const histogram = computeHistogram(
+      appState.results.values,
+      appState.graph,
+      appState.analyse.variable
+    );
+
+    appState.results.histogram = histogram;
+    renderAnalysisPreview();
+  } catch (error) {
+    dom.graphError.textContent =
+      error.message || "Erreur pendant l’application du zoom.";
+  }
+}
+
+function getDefaultGraphRangeForZoom(values, variable) {
+  const minValue = Math.min(...values);
+  const maxValue = Math.max(...values);
+
+  if (isVmVariable(variable)) {
+    return {
+      min: 0,
+      max: maxValue
+    };
+  }
+
+  return {
+    min: minValue,
+    max: maxValue
+  };
+}
+
+function onZoomYIn() {
+  zoomYAxis(0.67);
+}
+
+function onZoomYOut() {
+  zoomYAxis(1 / 0.67);
+}
+
+function onResetYAxis() {
+  appState.graph.yDisplayMax = null;
+  renderAnalysisPreview();
+}
+
+function zoomYAxis(factor) {
+  clearMessages();
+
+  const histogram = appState.results.histogram;
+  if (!histogram || !histogram.bins || histogram.bins.length === 0) {
+    dom.graphMessage.textContent = "Aucun histogramme disponible pour appliquer un zoom vertical.";
+    return;
+  }
+
+  const referenceMax = getReferenceHistogramMaxCount(
+    appState.results.values,
+    appState.analyse.variable,
+    histogram.nbClasses
+  );
+
+  const currentMax = Number.isFinite(appState.graph.yDisplayMax)
+    ? appState.graph.yDisplayMax
+    : referenceMax;
+
+  let newMax = currentMax * factor;
+
+  const minAllowedMax = Math.max(referenceMax * 0.02, 5);
+  const maxAllowedMax = referenceMax;
+
+  newMax = Math.max(newMax, minAllowedMax);
+  newMax = Math.min(newMax, maxAllowedMax);
+
+  appState.graph.yDisplayMax = newMax;
+
+  renderAnalysisPreview();
+}
+
 function onResetGraph() {
   resetGraphToDefault();
+  appState.graph.yDisplayMax = null;
   syncStateToControls();
 
   if (appState.results.values && appState.results.values.length > 0) {
@@ -612,7 +892,6 @@ function onResetGraph() {
 function onNewFile() {
   resetState();
   dom.fileInput.value = "";
-  dom.csvTextInput.value = "";
   renderEmptyState();
 }
 
@@ -649,11 +928,95 @@ function formatStatValue(value, unit) {
   return `${value.toFixed(decimals)} ${unit}`;
 }
 
+function createHistogramMarkersPlugin(stats, histogram, variable) {
+  return {
+    id: "histogramMarkersPlugin",
+    afterDatasetsDraw(chart) {
+      if (!stats || !histogram) return;
+      if (!Number.isFinite(histogram.graphMin) || !Number.isFinite(histogram.graphMax)) return;
+      if (!(histogram.graphMax > histogram.graphMin)) return;
+
+      const { ctx, chartArea } = chart;
+      if (!chartArea) return;
+
+      const markers = [
+        {
+          value: stats.median,
+          color: "#cc5500"
+        },
+        {
+          value: stats.mean,
+          color: "#007a3d"
+        }
+      ];
+
+      if (isVmVariable(variable) && Number.isFinite(stats?.rms)) {
+        markers.push({
+          value: stats.rms,
+          color: "#7b1fa2"
+        });
+      }
+
+      ctx.save();
+      ctx.lineWidth = 2;
+
+      markers.forEach(marker => {
+        if (!Number.isFinite(marker.value)) return;
+        if (marker.value < histogram.graphMin || marker.value > histogram.graphMax) return;
+
+        const x =
+          chartArea.left +
+          ((marker.value - histogram.graphMin) /
+            (histogram.graphMax - histogram.graphMin)) *
+            chartArea.width;
+
+        ctx.strokeStyle = marker.color;
+        ctx.beginPath();
+        ctx.moveTo(x, chartArea.top);
+        ctx.lineTo(x, chartArea.bottom);
+        ctx.stroke();
+      });
+
+      ctx.restore();
+    }
+  };
+}
+
+function getReferenceHistogramMaxCount(values, variable, nbClasses) {
+  const cleanValues = values.filter(value => Number.isFinite(value));
+
+  if (cleanValues.length === 0) {
+    return 1;
+  }
+
+  const defaultRange = getDefaultGraphRangeForZoom(cleanValues, variable);
+
+  const referenceHistogram = computeHistogram(
+    cleanValues,
+    {
+      mode: "manual",
+      min: defaultRange.min,
+      max: defaultRange.max,
+      nbClasses
+    },
+    variable
+  );
+
+  const maxCount = Math.max(
+    ...referenceHistogram.bins.map(bin => bin.count),
+    1
+  );
+
+  return maxCount;
+}
+
 function drawHistogramPreview(histogram, stats, variable) {
-  clearCanvas();
+  destroyHistogramChart();
 
   const canvas = dom.histogramCanvas;
   const ctx = canvas.getContext("2d");
+
+  ctx.clearRect(0, 0, canvas.width, canvas.height);
 
   if (!histogram || !histogram.bins || histogram.bins.length === 0) {
     ctx.fillStyle = "#666";
@@ -662,56 +1025,108 @@ function drawHistogramPreview(histogram, stats, variable) {
     return;
   }
 
-  const width = canvas.width;
-  const height = canvas.height;
+  const unit = getVariableUnit(variable);
 
-  const marginLeft = 70;
-  const marginRight = 20;
-  const marginTop = 30;
-  const marginBottom = 60;
+  const labels = histogram.bins.map((bin, index) => {
+    const min = formatNumber(bin.x0, 3);
+    const max = formatNumber(bin.x1, 3);
+    const isLastBin = index === histogram.bins.length - 1;
 
-  const plotWidth = width - marginLeft - marginRight;
-  const plotHeight = height - marginTop - marginBottom;
-
-  const maxCount = Math.max(...histogram.bins.map(bin => bin.count), 1);
-  const binPixelWidth = plotWidth / histogram.bins.length;
-
-  ctx.clearRect(0, 0, width, height);
-  ctx.fillStyle = "#ffffff";
-  ctx.fillRect(0, 0, width, height);
-
-  ctx.strokeStyle = "#222";
-  ctx.lineWidth = 1;
-
-  ctx.beginPath();
-  ctx.moveTo(marginLeft, marginTop);
-  ctx.lineTo(marginLeft, height - marginBottom);
-  ctx.lineTo(width - marginRight, height - marginBottom);
-  ctx.stroke();
-
-  histogram.bins.forEach((bin, index) => {
-    const barHeight = (bin.count / maxCount) * plotHeight;
-    const x = marginLeft + index * binPixelWidth + 1;
-    const y = height - marginBottom - barHeight;
-    const w = Math.max(binPixelWidth - 2, 1);
-
-    ctx.fillStyle = "#8fb7ff";
-    ctx.fillRect(x, y, w, barHeight);
+    return isLastBin ? `[${min} ; ${max}]` : `[${min} ; ${max}[`;
   });
 
-  ctx.fillStyle = "#222";
-  ctx.font = "12px Arial";
-  ctx.fillText("Effectif", 10, marginTop + 10);
-  ctx.fillText(getVariableUnit(variable), width - 50, height - 20);
+  const data = histogram.bins.map(bin => bin.count);
 
-  ctx.fillText("0", marginLeft - 18, height - marginBottom + 4);
-  ctx.fillText(String(maxCount), marginLeft - 35, marginTop + 4);
+  const referenceYAxisMax = getReferenceHistogramMaxCount(
+    appState.results.values,
+    variable,
+    histogram.nbClasses
+  );
 
-  drawVerticalMarker(ctx, histogram, stats?.median, "#cc5500", "Méd.");
-  drawVerticalMarker(ctx, histogram, stats?.mean, "#007a3d", "Moy.");
+  const visibleMaxCount = Math.max(...data, 0);
 
-  if (isVmVariable(variable) && Number.isFinite(stats?.rms)) {
-    drawVerticalMarker(ctx, histogram, stats.rms, "#7b1fa2", "RMS");
+  const yAxisMax = Number.isFinite(appState.graph.yDisplayMax)
+    ? appState.graph.yDisplayMax
+    : referenceYAxisMax;
+
+  histogramChart = new Chart(ctx, {
+    type: "bar",
+    data: {
+      labels,
+      datasets: [
+        {
+          label: "Effectif",
+          data,
+          backgroundColor: "rgba(143, 183, 255, 0.75)",
+          borderColor: "rgba(143, 183, 255, 1)",
+          borderWidth: 1,
+          barPercentage: 1.0,
+          categoryPercentage: 1.0
+        }
+      ]
+    },
+    plugins: [createHistogramMarkersPlugin(stats, histogram, variable)],
+    options: {
+      responsive: true,
+      maintainAspectRatio: false,
+      animation: false,
+      plugins: {
+        legend: {
+          display: false
+        },
+        tooltip: {
+          callbacks: {
+            title(items) {
+              if (!items || items.length === 0) return "";
+              return `Classe ${items[0].label} ${unit}`;
+            },
+            label(context) {
+              const count = context.raw;
+              const totalVisible = histogram.visibleCount || 0;
+              const percent =
+                totalVisible > 0 ? ((count / totalVisible) * 100).toFixed(2) : "0.00";
+
+              return [
+                `Effectif : ${count}`,
+                `Fréquence : ${percent} %`
+              ];
+            }
+          }
+        }
+      },
+      scales: {
+        x: {
+          title: {
+            display: true,
+            text: unit
+          },
+          ticks: {
+            autoSkip: true,
+            maxTicksLimit: 12,
+            maxRotation: 0,
+            minRotation: 0
+          },
+          grid: {
+            display: false
+          }
+        },
+        y: {
+          beginAtZero: true,
+          max: yAxisMax,
+          title: {
+            display: true,
+            text: "Effectif"
+          },
+          ticks: {
+            precision: 0
+          }
+        }
+      }
+    }
+  });
+  if (visibleMaxCount > yAxisMax) {
+    dom.graphMessage.textContent =
+      "Attention : l’échelle verticale est amplifiée. Une ou plusieurs colonnes dépassent la hauteur affichée.";
   }
 }
 
@@ -748,7 +1163,16 @@ function drawVerticalMarker(ctx, histogram, value, color, label) {
   ctx.fillText(label, x + 4, marginTop + 12);
 }
 
+function destroyHistogramChart() {
+  if (histogramChart) {
+    histogramChart.destroy();
+    histogramChart = null;
+  }
+}
+
 function clearCanvas() {
+  destroyHistogramChart();
+
   const ctx = dom.histogramCanvas.getContext("2d");
   ctx.clearRect(0, 0, dom.histogramCanvas.width, dom.histogramCanvas.height);
   ctx.fillStyle = "#666";
