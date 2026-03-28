@@ -62,6 +62,7 @@ function cacheDomReferences() {
   dom.graphTitle = document.getElementById("graph-title");
   dom.graphSource = document.getElementById("graph-source");
   dom.graphAnalysisMeta = document.getElementById("graph-analysis-meta");
+  dom.graphMarkersLegend = document.getElementById("graph-markers-legend");
   dom.graphExportMeta = document.getElementById("graph-export-meta");
   dom.graphAnalysedCount = document.getElementById("graph-analysed-count");
   dom.graphVisibleCount = document.getElementById("graph-visible-count");
@@ -127,6 +128,7 @@ function renderEmptyState() {
   dom.graphTitle.textContent = "—";
   dom.graphSource.textContent = "—";
   dom.graphAnalysisMeta.textContent = "—";
+  dom.graphMarkersLegend.textContent = "—";
   dom.graphExportMeta.textContent = "—";
   dom.graphAnalysedCount.textContent = "—";
   dom.graphVisibleCount.textContent = "—";
@@ -368,6 +370,24 @@ function updateFilteredPreview(parseResult) {
   renderAnalysisPreview();
 }
 
+function buildGraphMarkersLegend(stats, variable) {
+  if (!stats || !Number.isFinite(stats.count) || stats.count === 0) {
+    return "Repères statistiques : —";
+  }
+
+  const unit = getVariableUnit(variable);
+  const parts = [
+    `Médiane : ${formatStatValue(stats.median, unit)}`,
+    `Moyenne : ${formatStatValue(stats.mean, unit)}`
+  ];
+
+  if (isVmVariable(variable) && Number.isFinite(stats.rms)) {
+    parts.push(`RMS : ${formatStatValue(stats.rms, unit)}`);
+  }
+
+  return parts.join(" | ");
+}
+
 function renderAnalysisPreview() {
   const stats = appState.results.stats;
   const histogram = appState.results.histogram;
@@ -409,6 +429,10 @@ function renderAnalysisPreview() {
   dom.graphAnalysisMeta.textContent = `N = ${
     appState.results.counters.validRowsCount
   } | ${buildShortGraphMeta()}`;
+    dom.graphMarkersLegend.textContent = buildGraphMarkersLegend(
+    stats,
+    appState.analyse.variable
+  );
   dom.graphExportMeta.textContent = "Statistiques Mesures Cartoradio";
   dom.graphAnalysedCount.textContent = String(
     appState.results.counters.validRowsCount
@@ -640,6 +664,60 @@ function formatStatValue(value, unit) {
   return `${value.toFixed(decimals)} ${unit}`;
 }
 
+function createHistogramMarkersPlugin(stats, histogram, variable) {
+  return {
+    id: "histogramMarkersPlugin",
+    afterDatasetsDraw(chart) {
+      if (!stats || !histogram) return;
+      if (!Number.isFinite(histogram.graphMin) || !Number.isFinite(histogram.graphMax)) return;
+      if (!(histogram.graphMax > histogram.graphMin)) return;
+
+      const { ctx, chartArea } = chart;
+      if (!chartArea) return;
+
+      const markers = [
+        {
+          value: stats.median,
+          color: "#cc5500"
+        },
+        {
+          value: stats.mean,
+          color: "#007a3d"
+        }
+      ];
+
+      if (isVmVariable(variable) && Number.isFinite(stats?.rms)) {
+        markers.push({
+          value: stats.rms,
+          color: "#7b1fa2"
+        });
+      }
+
+      ctx.save();
+      ctx.lineWidth = 2;
+
+      markers.forEach(marker => {
+        if (!Number.isFinite(marker.value)) return;
+        if (marker.value < histogram.graphMin || marker.value > histogram.graphMax) return;
+
+        const x =
+          chartArea.left +
+          ((marker.value - histogram.graphMin) /
+            (histogram.graphMax - histogram.graphMin)) *
+            chartArea.width;
+
+        ctx.strokeStyle = marker.color;
+        ctx.beginPath();
+        ctx.moveTo(x, chartArea.top);
+        ctx.lineTo(x, chartArea.bottom);
+        ctx.stroke();
+      });
+
+      ctx.restore();
+    }
+  };
+}
+
 function drawHistogramPreview(histogram, stats, variable) {
   destroyHistogramChart();
 
@@ -683,6 +761,7 @@ function drawHistogramPreview(histogram, stats, variable) {
         }
       ]
     },
+    plugins: [createHistogramMarkersPlugin(stats, histogram, variable)],
     options: {
       responsive: true,
       maintainAspectRatio: false,
