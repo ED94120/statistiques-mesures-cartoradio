@@ -60,6 +60,9 @@ function cacheDomReferences() {
   dom.panRightBtn = document.getElementById("pan-right-btn");
   dom.zoomInBtn = document.getElementById("zoom-in-btn");
   dom.zoomOutBtn = document.getElementById("zoom-out-btn");
+  dom.zoomYInBtn = document.getElementById("zoom-y-in-btn");
+  dom.zoomYOutBtn = document.getElementById("zoom-y-out-btn");
+  dom.resetYBtn = document.getElementById("reset-y-btn");
   dom.resetGraphBtn = document.getElementById("reset-graph-btn");
   dom.exportPngBtn = document.getElementById("export-png-btn");
 
@@ -91,6 +94,9 @@ function bindEvents() {
   dom.panRightBtn.addEventListener("click", onPanRight);
   dom.zoomInBtn.addEventListener("click", onZoomIn);
   dom.zoomOutBtn.addEventListener("click", onZoomOut);
+  dom.zoomYInBtn.addEventListener("click", onZoomYIn);
+  dom.zoomYOutBtn.addEventListener("click", onZoomYOut);
+  dom.resetYBtn.addEventListener("click", onResetYAxis);
   dom.resetGraphBtn.addEventListener("click", onResetGraph);
 
   dom.exportPngBtn.addEventListener("click", onExportPng);
@@ -342,6 +348,8 @@ function updateAnalysis() {
   appState.results.counters.invalidExcludedCount =
     validityResult.invalidExcludedCount;
   appState.results.counters.validRowsCount = validityResult.validRows.length;
+
+  appState.graph.yDisplayMax = null;
 
   renderAnalysisPreview();
 }
@@ -823,9 +831,54 @@ function getDefaultGraphRangeForZoom(values, variable) {
   };
 }
 
+function onZoomYIn() {
+  zoomYAxis(0.67);
+}
+
+function onZoomYOut() {
+  zoomYAxis(1 / 0.67);
+}
+
+function onResetYAxis() {
+  appState.graph.yDisplayMax = null;
+  renderAnalysisPreview();
+}
+
+function zoomYAxis(factor) {
+  clearMessages();
+
+  const histogram = appState.results.histogram;
+  if (!histogram || !histogram.bins || histogram.bins.length === 0) {
+    dom.graphMessage.textContent = "Aucun histogramme disponible pour appliquer un zoom vertical.";
+    return;
+  }
+
+  const referenceMax = getReferenceHistogramMaxCount(
+    appState.results.values,
+    appState.analyse.variable,
+    histogram.nbClasses
+  );
+
+  const currentMax = Number.isFinite(appState.graph.yDisplayMax)
+    ? appState.graph.yDisplayMax
+    : referenceMax;
+
+  let newMax = currentMax * factor;
+
+  const minAllowedMax = Math.max(referenceMax * 0.02, 5);
+  const maxAllowedMax = referenceMax;
+
+  newMax = Math.max(newMax, minAllowedMax);
+  newMax = Math.min(newMax, maxAllowedMax);
+
+  appState.graph.yDisplayMax = newMax;
+
+  renderAnalysisPreview();
+}
 
 function onResetGraph() {
   resetGraphToDefault();
+  appState.graph.yDisplayMax = null;
   syncStateToControls();
 
   if (appState.results.values && appState.results.values.length > 0) {
@@ -984,11 +1037,17 @@ function drawHistogramPreview(histogram, stats, variable) {
 
   const data = histogram.bins.map(bin => bin.count);
 
-  const yAxisMax = getReferenceHistogramMaxCount(
+  const referenceYAxisMax = getReferenceHistogramMaxCount(
     appState.results.values,
     variable,
     histogram.nbClasses
   );
+
+  const visibleMaxCount = Math.max(...data, 0);
+
+  const yAxisMax = Number.isFinite(appState.graph.yDisplayMax)
+    ? appState.graph.yDisplayMax
+    : referenceYAxisMax;
 
   histogramChart = new Chart(ctx, {
     type: "bar",
@@ -1065,6 +1124,10 @@ function drawHistogramPreview(histogram, stats, variable) {
       }
     }
   });
+  if (visibleMaxCount > yAxisMax) {
+    dom.graphMessage.textContent =
+      "Attention : l’échelle verticale est amplifiée. Une ou plusieurs colonnes dépassent la hauteur affichée.";
+  }
 }
 
 function drawVerticalMarker(ctx, histogram, value, color, label) {
