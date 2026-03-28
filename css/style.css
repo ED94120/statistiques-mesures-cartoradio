@@ -196,3 +196,24 @@ button {
   color: #7b1fa2;
   font-weight: 600;
 }
+
+#filter-actions {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+}
+
+#filter-actions button {
+  width: 100%;
+  box-sizing: border-box;
+}
+
+#apply-filters-btn {
+  background: #dff3df;
+  border: 1px solid #8fbe8f;
+  font-weight: 600;
+}
+
+#apply-filters-btn:hover {
+  background: #cfeccc;
+}
