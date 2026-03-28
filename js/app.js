@@ -641,10 +641,12 @@ function formatStatValue(value, unit) {
 }
 
 function drawHistogramPreview(histogram, stats, variable) {
-  clearCanvas();
+  destroyHistogramChart();
 
   const canvas = dom.histogramCanvas;
   const ctx = canvas.getContext("2d");
+
+  ctx.clearRect(0, 0, canvas.width, canvas.height);
 
   if (!histogram || !histogram.bins || histogram.bins.length === 0) {
     ctx.fillStyle = "#666";
@@ -653,57 +655,81 @@ function drawHistogramPreview(histogram, stats, variable) {
     return;
   }
 
-  const width = canvas.width;
-  const height = canvas.height;
+  const unit = getVariableUnit(variable);
 
-  const marginLeft = 70;
-  const marginRight = 20;
-  const marginTop = 30;
-  const marginBottom = 60;
-
-  const plotWidth = width - marginLeft - marginRight;
-  const plotHeight = height - marginTop - marginBottom;
-
-  const maxCount = Math.max(...histogram.bins.map(bin => bin.count), 1);
-  const binPixelWidth = plotWidth / histogram.bins.length;
-
-  ctx.clearRect(0, 0, width, height);
-  ctx.fillStyle = "#ffffff";
-  ctx.fillRect(0, 0, width, height);
-
-  ctx.strokeStyle = "#222";
-  ctx.lineWidth = 1;
-
-  ctx.beginPath();
-  ctx.moveTo(marginLeft, marginTop);
-  ctx.lineTo(marginLeft, height - marginBottom);
-  ctx.lineTo(width - marginRight, height - marginBottom);
-  ctx.stroke();
-
-  histogram.bins.forEach((bin, index) => {
-    const barHeight = (bin.count / maxCount) * plotHeight;
-    const x = marginLeft + index * binPixelWidth + 1;
-    const y = height - marginBottom - barHeight;
-    const w = Math.max(binPixelWidth - 2, 1);
-
-    ctx.fillStyle = "#8fb7ff";
-    ctx.fillRect(x, y, w, barHeight);
+  const labels = histogram.bins.map(bin => {
+    const min = formatNumber(bin.start, 3);
+    const max = formatNumber(bin.end, 3);
+    return `[${min} ; ${max}[`;
   });
 
-  ctx.fillStyle = "#222";
-  ctx.font = "12px Arial";
-  ctx.fillText("Effectif", 10, marginTop + 10);
-  ctx.fillText(getVariableUnit(variable), width - 50, height - 20);
+  const data = histogram.bins.map(bin => bin.count);
 
-  ctx.fillText("0", marginLeft - 18, height - marginBottom + 4);
-  ctx.fillText(String(maxCount), marginLeft - 35, marginTop + 4);
-
-  drawVerticalMarker(ctx, histogram, stats?.median, "#cc5500", "Méd.");
-  drawVerticalMarker(ctx, histogram, stats?.mean, "#007a3d", "Moy.");
-
-  if (isVmVariable(variable) && Number.isFinite(stats?.rms)) {
-    drawVerticalMarker(ctx, histogram, stats.rms, "#7b1fa2", "RMS");
-  }
+  histogramChart = new Chart(ctx, {
+    type: "bar",
+    data: {
+      labels,
+      datasets: [
+        {
+          label: "Effectif",
+          data,
+          backgroundColor: "rgba(143, 183, 255, 0.75)",
+          borderColor: "rgba(143, 183, 255, 1)",
+          borderWidth: 1,
+          barPercentage: 1.0,
+          categoryPercentage: 1.0
+        }
+      ]
+    },
+    options: {
+      responsive: true,
+      maintainAspectRatio: false,
+      animation: false,
+      plugins: {
+        legend: {
+          display: false
+        },
+        tooltip: {
+          callbacks: {
+            title(items) {
+              if (!items || items.length === 0) return "";
+              return `Classe ${items[0].label} ${unit}`;
+            },
+            label(context) {
+              return `Effectif : ${context.raw}`;
+            }
+          }
+        }
+      },
+      scales: {
+        x: {
+          title: {
+            display: true,
+            text: unit
+          },
+          ticks: {
+            autoSkip: true,
+            maxTicksLimit: 12,
+            maxRotation: 0,
+            minRotation: 0
+          },
+          grid: {
+            display: false
+          }
+        },
+        y: {
+          beginAtZero: true,
+          title: {
+            display: true,
+            text: "Effectif"
+          },
+          ticks: {
+            precision: 0
+          }
+        }
+      }
+    }
+  });
 }
 
 function drawVerticalMarker(ctx, histogram, value, color, label) {
