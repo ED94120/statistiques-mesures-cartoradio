@@ -56,6 +56,8 @@ function cacheDomReferences() {
   dom.graphMaxInput = document.getElementById("graph-max-input");
   dom.graphClassesInput = document.getElementById("graph-classes-input");
   dom.graphClassWidthOutput = document.getElementById("graph-class-width-output");
+  dom.panLeftBtn = document.getElementById("pan-left-btn");
+  dom.panRightBtn = document.getElementById("pan-right-btn");
   dom.zoomInBtn = document.getElementById("zoom-in-btn");
   dom.zoomOutBtn = document.getElementById("zoom-out-btn");
   dom.resetGraphBtn = document.getElementById("reset-graph-btn");
@@ -85,6 +87,8 @@ function bindEvents() {
   dom.graphMinInput.addEventListener("change", handleGraphChange);
   dom.graphMaxInput.addEventListener("change", handleGraphChange);
   dom.graphClassesInput.addEventListener("change", handleGraphChange);
+  dom.panLeftBtn.addEventListener("click", onPanLeft);
+  dom.panRightBtn.addEventListener("click", onPanRight);
   dom.zoomInBtn.addEventListener("click", onZoomIn);
   dom.zoomOutBtn.addEventListener("click", onZoomOut);
   dom.resetGraphBtn.addEventListener("click", onResetGraph);
@@ -616,6 +620,94 @@ function onResetFilters() {
 
   if (appState.data.length > 0) {
     handleUiChange();
+  }
+}
+
+function onPanLeft() {
+  panHistogram(-0.25);
+}
+
+function onPanRight() {
+  panHistogram(0.25);
+}
+
+function panHistogram(relativeShift) {
+  clearMessages();
+
+  if (!appState.results.values || appState.results.values.length === 0) {
+    dom.graphMessage.textContent = "Aucune valeur exploitable pour déplacer l’affichage.";
+    return;
+  }
+
+  const currentHistogram = appState.results.histogram;
+  if (
+    !currentHistogram ||
+    !Number.isFinite(currentHistogram.graphMin) ||
+    !Number.isFinite(currentHistogram.graphMax)
+  ) {
+    dom.graphError.textContent = "Plage de graphique indisponible.";
+    return;
+  }
+
+  const values = appState.results.values.filter(value => Number.isFinite(value));
+  if (values.length === 0) {
+    dom.graphMessage.textContent = "Aucune valeur exploitable pour déplacer l’affichage.";
+    return;
+  }
+
+  const baseRange = getDefaultGraphRangeForZoom(values, appState.analyse.variable);
+
+  const currentMin = currentHistogram.graphMin;
+  const currentMax = currentHistogram.graphMax;
+  const span = currentMax - currentMin;
+
+  if (!(span > 0)) {
+    dom.graphError.textContent = "Plage de déplacement invalide.";
+    return;
+  }
+
+  const shift = span * relativeShift;
+
+  let newMin = currentMin + shift;
+  let newMax = currentMax + shift;
+
+  if (newMin < baseRange.min) {
+    newMin = baseRange.min;
+    newMax = newMin + span;
+  }
+
+  if (newMax > baseRange.max) {
+    newMax = baseRange.max;
+    newMin = newMax - span;
+  }
+
+  newMin = Math.max(newMin, baseRange.min);
+  newMax = Math.min(newMax, baseRange.max);
+
+  if (!(newMax > newMin)) {
+    dom.graphError.textContent = "Impossible de déplacer l’affichage.";
+    return;
+  }
+
+  appState.graph.mode = "manual";
+  appState.graph.min = newMin;
+  appState.graph.max = newMax;
+
+  syncStateToControls();
+  updateGraphModeUi();
+
+  try {
+    const histogram = computeHistogram(
+      appState.results.values,
+      appState.graph,
+      appState.analyse.variable
+    );
+
+    appState.results.histogram = histogram;
+    renderAnalysisPreview();
+  } catch (error) {
+    dom.graphError.textContent =
+      error.message || "Erreur pendant le déplacement de l’affichage.";
   }
 }
 
