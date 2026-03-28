@@ -164,6 +164,23 @@ function onPastedCsvAnalyze() {
   loadAndAnalyze(csvText, "CSV collé");
 }
 
+function populateDynamicFilterControls() {
+  populateSelect(
+    dom.environmentSelect,
+    appState.filterOptions.environnements,
+    "tous",
+    "Tous"
+  );
+
+  populateSelect(
+    dom.laboratorySelect,
+    appState.filterOptions.laboratoires,
+    "tous",
+    "Tous"
+  );
+}
+
+
 function loadAndAnalyze(csvText, sourceName) {
   clearMessages();
 
@@ -391,21 +408,5 @@ function clearCanvas() {
   ctx.fillStyle = "#666";
   ctx.font = "16px Arial";
   ctx.fillText("Aucun histogramme affiché.", 30, 40);
-}
-
-function populateDynamicFilterControls() {
-  populateSelect(
-    dom.environmentSelect,
-    appState.filterOptions.environnements,
-    "tous",
-    "Tous"
-  );
-
-  populateSelect(
-    dom.laboratorySelect,
-    appState.filterOptions.laboratoires,
-    "tous",
-    "Tous"
-  );
 }
 
