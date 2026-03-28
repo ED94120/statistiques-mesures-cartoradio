@@ -128,7 +128,7 @@ function renderEmptyState() {
   dom.graphTitle.textContent = "—";
   dom.graphSource.textContent = "—";
   dom.graphAnalysisMeta.textContent = "—";
-  dom.graphMarkersLegend.textContent = "—";
+  dom.graphMarkersLegend.innerHTML = "—";
   dom.graphExportMeta.textContent = "—";
   dom.graphAnalysedCount.textContent = "—";
   dom.graphVisibleCount.textContent = "—";
@@ -377,12 +377,14 @@ function buildGraphMarkersLegend(stats, variable) {
 
   const unit = getVariableUnit(variable);
   const parts = [
-    `Médiane : ${formatStatValue(stats.median, unit)}`,
-    `Moyenne : ${formatStatValue(stats.mean, unit)}`
+    `<span class="marker-label marker-label-median">Médiane : ${formatStatValue(stats.median, unit)}</span>`,
+    `<span class="marker-label marker-label-mean">Moyenne : ${formatStatValue(stats.mean, unit)}</span>`
   ];
 
   if (isVmVariable(variable) && Number.isFinite(stats.rms)) {
-    parts.push(`RMS : ${formatStatValue(stats.rms, unit)}`);
+    parts.push(
+      `<span class="marker-label marker-label-rms">RMS : ${formatStatValue(stats.rms, unit)}</span>`
+    );
   }
 
   return parts.join(" | ");
@@ -429,7 +431,7 @@ function renderAnalysisPreview() {
   dom.graphAnalysisMeta.textContent = `N = ${
     appState.results.counters.validRowsCount
   } | ${buildShortGraphMeta()}`;
-    dom.graphMarkersLegend.textContent = buildGraphMarkersLegend(
+    dom.graphMarkersLegend.innerHTML = buildGraphMarkersLegend(
     stats,
     appState.analyse.variable
   );
