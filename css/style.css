@@ -165,3 +165,10 @@ button {
 .hidden {
   display: none !important;
 }
+
+#graph-min-input:disabled,
+#graph-max-input:disabled {
+  background-color: #f1f3f5;
+  color: #777;
+  cursor: not-allowed;
+}
