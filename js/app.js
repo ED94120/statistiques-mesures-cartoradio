@@ -7,6 +7,7 @@ function initApp() {
   cacheDomReferences();
   bindEvents();
   renderEmptyState();
+  updateGraphModeUi();
 }
 
 function cacheDomReferences() {
@@ -240,6 +241,7 @@ function syncStateToControls() {
   dom.graphMinInput.value = appState.graph.min ?? "";
   dom.graphMaxInput.value = appState.graph.max ?? "";
   dom.graphClassesInput.value = appState.graph.nbClasses;
+  updateGraphModeUi();
 }
 
 function syncControlsToState() {
@@ -262,6 +264,13 @@ function syncControlsToState() {
   appState.graph.max =
     dom.graphMaxInput.value === "" ? null : Number(dom.graphMaxInput.value);
   appState.graph.nbClasses = Number(dom.graphClassesInput.value);
+}
+
+function updateGraphModeUi() {
+  const isAuto = dom.graphModeSelect.value === "auto";
+
+  dom.graphMinInput.disabled = isAuto;
+  dom.graphMaxInput.disabled = isAuto;
 }
 
 function handleUiChange() {
@@ -540,6 +549,7 @@ function buildShortGraphMeta() {
 function handleGraphChange() {
   clearMessages();
   syncControlsToState();
+  updateGraphModeUi();
 
   if (!appState.results.values || appState.results.values.length === 0) {
     dom.graphMessage.textContent =
