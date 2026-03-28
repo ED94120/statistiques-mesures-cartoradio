@@ -1053,6 +1053,7 @@ function drawHistogramPreview(histogram, stats, variable) {
         },
         y: {
           beginAtZero: true,
+          max: yAxisMax,
           title: {
             display: true,
             text: "Effectif"
