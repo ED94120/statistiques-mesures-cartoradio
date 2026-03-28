@@ -15,9 +15,6 @@ function cacheDomReferences() {
 
   dom.fileInput = document.getElementById("csv-file-input");
   dom.dropZone = document.getElementById("drop-zone");
-  dom.csvTextInput = document.getElementById("csv-text-input");
-  dom.analyzePastedCsvBtn = document.getElementById("analyze-pasted-csv-btn");
-  dom.loadAnalyzeBtn = document.getElementById("load-analyze-btn");
   dom.newFileBtn = document.getElementById("new-file-btn");
 
   dom.sourceName = document.getElementById("source-name");
