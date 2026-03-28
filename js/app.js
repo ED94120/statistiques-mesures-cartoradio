@@ -392,3 +392,88 @@ function clearCanvas() {
   ctx.font = "16px Arial";
   ctx.fillText("Aucun histogramme affiché.", 30, 40);
 }
+function populateDynamicFilterControls() {
+  populateSelect(
+    dom.environmentSelect,
+    appState.filterOptions.environnements,
+    "tous",
+    "Tous"
+  );
+
+  populateSelect(
+    dom.laboratorySelect,
+    appState.filterOptions.laboratoires,
+    "tous",
+    "Tous"
+  );
+}
+
+function populateSelect(selectElement, values, defaultValue, defaultLabel) {
+  selectElement.innerHTML = "";
+
+  const defaultOption = document.createElement("option");
+  defaultOption.value = defaultValue;
+  defaultOption.textContent = defaultLabel;
+  selectElement.appendChild(defaultOption);
+
+  values.forEach(value => {
+    const option = document.createElement("option");
+    option.value = value;
+    option.textContent = value;
+    selectElement.appendChild(option);
+  });
+}
+
+function updateFilteredPreview(parseResult) {
+  const periodText =
+    appState.filterOptions.years.min != null && appState.filterOptions.years.max != null
+      ? `${appState.filterOptions.years.min} – ${appState.filterOptions.years.max}`
+      : "—";
+
+  dom.sourceName.textContent = `Source : ${appState.sourceName || "—"}`;
+  dom.sourceRowCount.textContent = `Lignes : ${appState.data.length}`;
+  dom.sourcePeriod.textContent = `Période : ${periodText}`;
+
+  appState.results.filteredRows = appState.data.slice();
+  appState.results.counters.totalRows = appState.data.length;
+  appState.results.counters.filteredRowsCount = appState.data.length;
+  appState.results.counters.thresholdExcludedCount = 0;
+  appState.results.counters.invalidExcludedCount = 0;
+  appState.results.counters.validRowsCount = 0;
+
+  dom.importMessage.textContent =
+    `Fichier chargé avec succès. ${appState.data.length} lignes normalisées` +
+    (parseResult.invalidRowCount > 0 ? `, ${parseResult.invalidRowCount} lignes ignorées.` : ".");
+
+  renderAnalysisPreview();
+}
+
+function buildActiveFiltersText() {
+  const lieuText =
+    appState.filters.lieuMesure === "indifferent"
+      ? "Indifférent"
+      : appState.filters.lieuMesure === "interieur"
+      ? "En intérieur"
+      : "En extérieur";
+
+  const casBText =
+    appState.filters.casB === "indifferent"
+      ? "Indifférent"
+      : appState.filters.casB === "exists"
+      ? "Cas B existe"
+      : "Cas B n’existe pas";
+
+  const seuilText = appState.filters.seuilCasAActif
+    ? `${appState.filters.seuilCasA} V/m`
+    : "désactivé";
+
+  return [
+    `Période : ${appState.filters.anneeMin ?? "—"} – ${appState.filters.anneeMax ?? "—"}`,
+    `Lieu : ${lieuText}`,
+    `Environnement : ${appState.filters.environnement === "tous" ? "Tous" : appState.filters.environnement}`,
+    `Laboratoire : ${appState.filters.laboratoire === "tous" ? "Tous" : appState.filters.laboratoire}`,
+    `Cas B : ${casBText}`,
+    `Seuil Cas A : ${seuilText}`,
+    `Grandeur : ${dom.analysisVariableSelect.options[dom.analysisVariableSelect.selectedIndex]?.textContent || "—"}`
+  ].join(" | ");
+}
