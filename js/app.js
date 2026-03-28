@@ -71,8 +71,6 @@ function cacheDomReferences() {
 
 function bindEvents() {
   dom.fileInput.addEventListener("change", onFileSelected);
-  dom.analyzePastedCsvBtn.addEventListener("click", onPastedCsvAnalyze);
-  dom.loadAnalyzeBtn.addEventListener("click", onLoadAnalyzeClicked);
   dom.newFileBtn.addEventListener("click", onNewFile);
 
   dom.applyFiltersBtn.addEventListener("click", handleUiChange);
@@ -158,16 +156,6 @@ async function onFileSelected(event) {
   await loadFile(file);
 }
 
-async function onLoadAnalyzeClicked() {
-  const file = dom.fileInput.files?.[0];
-  if (!file) {
-    dom.importError.textContent = "Aucun fichier CSV sélectionné.";
-    return;
-  }
-
-  await loadFile(file);
-}
-
 async function loadFile(file) {
   clearMessages();
 
@@ -179,17 +167,6 @@ async function loadFile(file) {
   }
 }
 
-function onPastedCsvAnalyze() {
-  clearMessages();
-
-  const csvText = dom.csvTextInput.value.trim();
-  if (!csvText) {
-    dom.importError.textContent = "Le contenu CSV collé est vide.";
-    return;
-  }
-
-  loadAndAnalyze(csvText, "CSV collé");
-}
 
 function loadAndAnalyze(csvText, sourceName) {
   clearMessages();
@@ -609,7 +586,6 @@ function onResetGraph() {
 function onNewFile() {
   resetState();
   dom.fileInput.value = "";
-  dom.csvTextInput.value = "";
   renderEmptyState();
 }
 
