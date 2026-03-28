@@ -698,7 +698,15 @@ function drawHistogramPreview(histogram, stats, variable) {
               return `Classe ${items[0].label} ${unit}`;
             },
             label(context) {
-              return `Effectif : ${context.raw}`;
+              const count = context.raw;
+              const totalVisible = histogram.visibleCount || 0;
+              const percent =
+                totalVisible > 0 ? ((count / totalVisible) * 100).toFixed(2) : "0.00";
+
+              return [
+                `Effectif : ${count}`,
+                `Fréquence : ${percent} %`
+              ];
             }
           }
         }
