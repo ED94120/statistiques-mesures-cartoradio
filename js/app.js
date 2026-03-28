@@ -657,10 +657,12 @@ function drawHistogramPreview(histogram, stats, variable) {
 
   const unit = getVariableUnit(variable);
 
-  const labels = histogram.bins.map(bin => {
-    const min = formatNumber(bin.start, 3);
-    const max = formatNumber(bin.end, 3);
-    return `[${min} ; ${max}[`;
+  const labels = histogram.bins.map((bin, index) => {
+  const min = formatNumber(bin.x0, 3);
+  const max = formatNumber(bin.x1, 3);
+  const isLastBin = index === histogram.bins.length - 1;
+
+  return isLastBin ? `[${min} ; ${max}]` : `[${min} ; ${max}[`;
   });
 
   const data = histogram.bins.map(bin => bin.count);
