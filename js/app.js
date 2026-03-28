@@ -174,12 +174,7 @@ function loadAndAnalyze(csvText, sourceName) {
     appState.sourceName = sourceName;
     appState.columns = parseResult.headers;
     appState.data = parseResult.rows;
-    appState.filterOptions = {
-      years: getYearBoundsFromData(appState.data),
-      lieuxMesure: [],
-      environnements: [],
-      laboratoires: []
-    };
+    appState.filterOptions = buildFilterOptions(appState.data);
 
     resetFiltersToDefault();
     resetGraphToDefault();
@@ -193,56 +188,26 @@ function loadAndAnalyze(csvText, sourceName) {
 
 function renderLoadedStub(parseResult) {
   showLoadedLayout();
-
-  const yearBounds = getYearBoundsFromData(appState.data);
-  const periodText =
-    yearBounds.min != null && yearBounds.max != null
-      ? `${yearBounds.min} – ${yearBounds.max}`
-      : "—";
-
-  dom.sourceName.textContent = `Source : ${appState.sourceName || "—"}`;
-  dom.sourceRowCount.textContent = `Lignes : ${appState.data.length}`;
-  dom.sourcePeriod.textContent = `Période : ${periodText}`;
-
-  dom.summaryTotalRows.textContent = String(appState.data.length);
-  dom.summaryFilteredRows.textContent = "0";
-  dom.summaryThresholdExcluded.textContent = "0";
-  dom.summaryInvalidExcluded.textContent = "0";
-  dom.summaryValidValues.textContent = "0";
-
-  dom.activeFiltersSummary.textContent = "CSV chargé. Les filtres métier seront branchés à l’étape suivante.";
-  dom.statsCards.innerHTML = "";
-
-  dom.graphTitle.textContent = "Histogramme — —";
-  dom.graphSource.textContent = `Source : ${appState.sourceName || "—"}`;
-  dom.graphAnalysisMeta.textContent = "N = 0";
-  dom.graphExportMeta.textContent = "Statistiques Mesures Cartoradio";
-  dom.graphAnalysedCount.textContent = "0";
-  dom.graphVisibleCount.textContent = "0";
-  dom.graphHiddenCount.textContent = "0";
-  dom.graphUnit.textContent = "—";
-  dom.graphClassWidthOutput.textContent = "—";
-
-  dom.importMessage.textContent =
-    `Fichier chargé avec succès. ${appState.data.length} lignes normalisées` +
-    (parseResult.invalidRowCount > 0 ? `, ${parseResult.invalidRowCount} lignes ignorées.` : ".");
-
-  clearCanvas();
+  populateDynamicFilterControls();
+  resetFiltersToDefault();
+  syncStateToControls();
+  updateFilteredPreview(parseResult);
 }
 
-function getYearBoundsFromData(rows) {
-  const years = rows
-    .map(row => row.annee)
-    .filter(year => Number.isFinite(year));
+function populateSelect(selectElement, values, defaultValue, defaultLabel) {
+  selectElement.innerHTML = "";
 
-  if (years.length === 0) {
-    return { min: null, max: null };
-  }
+  const defaultOption = document.createElement("option");
+  defaultOption.value = defaultValue;
+  defaultOption.textContent = defaultLabel;
+  selectElement.appendChild(defaultOption);
 
-  return {
-    min: Math.min(...years),
-    max: Math.max(...years)
-  };
+  values.forEach(value => {
+    const option = document.createElement("option");
+    option.value = value;
+    option.textContent = value;
+    selectElement.appendChild(option);
+  });
 }
 
 function syncStateToControls() {
@@ -279,8 +244,116 @@ function syncControlsToState() {
 }
 
 function handleUiChange() {
+  clearMessages();
   syncControlsToState();
-  dom.analysisMessage.textContent = "Le moteur d’analyse sera branché à l’étape suivante.";
+
+  if (!appState.data.length) {
+    dom.analysisError.textContent = "Aucune donnée chargée.";
+    return;
+  }
+
+  const filteredRows = applyUserFilters(appState.data, appState.filters);
+
+  appState.results.filteredRows = filteredRows;
+  appState.results.counters.totalRows = appState.data.length;
+  appState.results.counters.filteredRowsCount = filteredRows.length;
+  appState.results.counters.thresholdExcludedCount = 0;
+  appState.results.counters.invalidExcludedCount = 0;
+  appState.results.counters.validRowsCount = 0;
+
+  renderAnalysisPreview();
+}
+
+function updateFilteredPreview(parseResult) {
+  const periodText =
+    appState.filterOptions.years.min != null && appState.filterOptions.years.max != null
+      ? `${appState.filterOptions.years.min} – ${appState.filterOptions.years.max}`
+      : "—";
+
+  dom.sourceName.textContent = `Source : ${appState.sourceName || "—"}`;
+  dom.sourceRowCount.textContent = `Lignes : ${appState.data.length}`;
+  dom.sourcePeriod.textContent = `Période : ${periodText}`;
+
+  appState.results.filteredRows = appState.data.slice();
+  appState.results.counters.totalRows = appState.data.length;
+  appState.results.counters.filteredRowsCount = appState.data.length;
+  appState.results.counters.thresholdExcludedCount = 0;
+  appState.results.counters.invalidExcludedCount = 0;
+  appState.results.counters.validRowsCount = 0;
+
+  dom.importMessage.textContent =
+    `Fichier chargé avec succès. ${appState.data.length} lignes normalisées` +
+    (parseResult.invalidRowCount > 0 ? `, ${parseResult.invalidRowCount} lignes ignorées.` : ".");
+
+  renderAnalysisPreview();
+}
+
+function renderAnalysisPreview() {
+  dom.summaryTotalRows.textContent = String(appState.results.counters.totalRows);
+  dom.summaryFilteredRows.textContent = String(appState.results.counters.filteredRowsCount);
+  dom.summaryThresholdExcluded.textContent = String(appState.results.counters.thresholdExcludedCount);
+  dom.summaryInvalidExcluded.textContent = String(appState.results.counters.invalidExcludedCount);
+  dom.summaryValidValues.textContent = String(appState.results.counters.validRowsCount);
+
+  dom.activeFiltersSummary.textContent = buildActiveFiltersText();
+
+  dom.statsCards.innerHTML = `
+    <div class="stat-card">
+      <span class="stat-label">Statut</span>
+      <span class="stat-value">Filtres métier appliqués</span>
+    </div>
+    <div class="stat-card">
+      <span class="stat-label">Lignes retenues</span>
+      <span class="stat-value">${appState.results.counters.filteredRowsCount}</span>
+    </div>
+  `;
+
+  dom.analysisMessage.textContent =
+    appState.results.counters.filteredRowsCount > 0
+      ? "Filtres métier appliqués. La validité analytique et les statistiques seront branchées à l’étape suivante."
+      : "Aucune mesure ne correspond aux filtres sélectionnés.";
+
+  dom.graphTitle.textContent = "Histogramme — —";
+  dom.graphSource.textContent = `Source : ${appState.sourceName || "—"}`;
+  dom.graphAnalysisMeta.textContent = `Sous-ensemble après filtres : ${appState.results.counters.filteredRowsCount}`;
+  dom.graphExportMeta.textContent = "Statistiques Mesures Cartoradio";
+  dom.graphAnalysedCount.textContent = "0";
+  dom.graphVisibleCount.textContent = "0";
+  dom.graphHiddenCount.textContent = "0";
+  dom.graphUnit.textContent = "—";
+  dom.graphClassWidthOutput.textContent = "—";
+
+  clearCanvas();
+}
+
+function buildActiveFiltersText() {
+  const lieuText =
+    appState.filters.lieuMesure === "indifferent"
+      ? "Indifférent"
+      : appState.filters.lieuMesure === "interieur"
+      ? "En intérieur"
+      : "En extérieur";
+
+  const casBText =
+    appState.filters.casB === "indifferent"
+      ? "Indifférent"
+      : appState.filters.casB === "exists"
+      ? "Cas B existe"
+      : "Cas B n’existe pas";
+
+  const seuilText = appState.filters.seuilCasAActif
+    ? `${appState.filters.seuilCasA} V/m`
+    : "désactivé";
+
+  return [
+    `Période : ${appState.filters.anneeMin ?? "—"} – ${appState.filters.anneeMax ?? "—"}`,
+    `Lieu : ${lieuText}`,
+    `Environnement : ${appState.filters.environnement === "tous" ? "Tous" : appState.filters.environnement}`,
+    `Laboratoire : ${appState.filters.laboratoire === "tous" ? "Tous" : appState.filters.laboratoire}`,
+    `Cas B : ${casBText}`,
+    `Seuil Cas A : ${seuilText}`,
+    `Grandeur : ${dom.analysisVariableSelect.options[dom.analysisVariableSelect.selectedIndex]?.textContent || "—"}`
+  ].join(" | ");
 }
 
 function handleGraphChange() {
@@ -291,7 +364,7 @@ function handleGraphChange() {
 function onResetFilters() {
   resetFiltersToDefault();
   syncStateToControls();
-  dom.analysisMessage.textContent = "Filtres réinitialisés.";
+  handleUiChange();
 }
 
 function onResetGraph() {
