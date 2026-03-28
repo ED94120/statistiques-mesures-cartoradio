@@ -1,4 +1,5 @@
 const dom = {};
+let histogramChart = null;
 
 document.addEventListener("DOMContentLoaded", initApp);
 
@@ -738,7 +739,16 @@ function drawVerticalMarker(ctx, histogram, value, color, label) {
   ctx.fillText(label, x + 4, marginTop + 12);
 }
 
+function destroyHistogramChart() {
+  if (histogramChart) {
+    histogramChart.destroy();
+    histogramChart = null;
+  }
+}
+
 function clearCanvas() {
+  destroyHistogramChart();
+
   const ctx = dom.histogramCanvas.getContext("2d");
   ctx.clearRect(0, 0, dom.histogramCanvas.width, dom.histogramCanvas.height);
   ctx.fillStyle = "#666";
