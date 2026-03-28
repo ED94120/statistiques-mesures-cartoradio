@@ -56,6 +56,8 @@ function cacheDomReferences() {
   dom.graphMaxInput = document.getElementById("graph-max-input");
   dom.graphClassesInput = document.getElementById("graph-classes-input");
   dom.graphClassWidthOutput = document.getElementById("graph-class-width-output");
+  dom.zoomInBtn = document.getElementById("zoom-in-btn");
+  dom.zoomOutBtn = document.getElementById("zoom-out-btn");
   dom.resetGraphBtn = document.getElementById("reset-graph-btn");
   dom.exportPngBtn = document.getElementById("export-png-btn");
 
@@ -83,6 +85,8 @@ function bindEvents() {
   dom.graphMinInput.addEventListener("change", handleGraphChange);
   dom.graphMaxInput.addEventListener("change", handleGraphChange);
   dom.graphClassesInput.addEventListener("change", handleGraphChange);
+  dom.zoomInBtn.addEventListener("click", onZoomIn);
+  dom.zoomOutBtn.addEventListener("click", onZoomOut);
   dom.resetGraphBtn.addEventListener("click", onResetGraph);
 
   dom.exportPngBtn.addEventListener("click", onExportPng);
@@ -614,6 +618,119 @@ function onResetFilters() {
     handleUiChange();
   }
 }
+
+function onZoomIn() {
+  zoomHistogram(0.5);
+}
+
+function onZoomOut() {
+  zoomHistogram(2);
+}
+
+function zoomHistogram(factor) {
+  clearMessages();
+
+  if (!appState.results.values || appState.results.values.length === 0) {
+    dom.graphMessage.textContent = "Aucune valeur exploitable pour appliquer un zoom.";
+    return;
+  }
+
+  const currentHistogram = appState.results.histogram;
+  if (
+    !currentHistogram ||
+    !Number.isFinite(currentHistogram.graphMin) ||
+    !Number.isFinite(currentHistogram.graphMax)
+  ) {
+    dom.graphError.textContent = "Plage de graphique indisponible.";
+    return;
+  }
+
+  const values = appState.results.values.filter(value => Number.isFinite(value));
+  if (values.length === 0) {
+    dom.graphMessage.textContent = "Aucune valeur exploitable pour appliquer un zoom.";
+    return;
+  }
+
+  const baseRange = getDefaultGraphRangeForZoom(values, appState.analyse.variable);
+
+  const currentMin = currentHistogram.graphMin;
+  const currentMax = currentHistogram.graphMax;
+  const currentSpan = currentMax - currentMin;
+
+  if (!(currentSpan > 0)) {
+    dom.graphError.textContent = "Plage de zoom invalide.";
+    return;
+  }
+
+  const center = (currentMin + currentMax) / 2;
+  let newSpan = currentSpan * factor;
+
+  const minSpan = Math.max((baseRange.max - baseRange.min) / 1000, 0.0001);
+  const maxSpan = baseRange.max - baseRange.min;
+
+  newSpan = Math.max(newSpan, minSpan);
+  newSpan = Math.min(newSpan, maxSpan);
+
+  let newMin = center - newSpan / 2;
+  let newMax = center + newSpan / 2;
+
+  if (newMin < baseRange.min) {
+    newMin = baseRange.min;
+    newMax = newMin + newSpan;
+  }
+
+  if (newMax > baseRange.max) {
+    newMax = baseRange.max;
+    newMin = newMax - newSpan;
+  }
+
+  newMin = Math.max(newMin, baseRange.min);
+  newMax = Math.min(newMax, baseRange.max);
+
+  if (!(newMax > newMin)) {
+    dom.graphError.textContent = "Impossible d’appliquer le zoom.";
+    return;
+  }
+
+  appState.graph.mode = "manual";
+  appState.graph.min = newMin;
+  appState.graph.max = newMax;
+
+  syncStateToControls();
+  updateGraphModeUi();
+
+  try {
+    const histogram = computeHistogram(
+      appState.results.values,
+      appState.graph,
+      appState.analyse.variable
+    );
+
+    appState.results.histogram = histogram;
+    renderAnalysisPreview();
+  } catch (error) {
+    dom.graphError.textContent =
+      error.message || "Erreur pendant l’application du zoom.";
+  }
+}
+
+function getDefaultGraphRangeForZoom(values, variable) {
+  const minValue = Math.min(...values);
+  const maxValue = Math.max(...values);
+
+  if (isVmVariable(variable)) {
+    return {
+      min: 0,
+      max: maxValue
+    };
+  }
+
+  return {
+    min: minValue,
+    max: maxValue
+  };
+}
+
 
 function onResetGraph() {
   resetGraphToDefault();
