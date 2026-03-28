@@ -1,1 +1,223 @@
+<!DOCTYPE html>
+<html lang="fr">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Statistiques Mesures Cartoradio</title>
+  <link rel="stylesheet" href="css/style.css" />
+</head>
+<body>
+  <header id="app-header" class="app-header">
+    <h1 id="app-title">Statistiques Mesures Cartoradio</h1>
+    <p id="app-subtitle">
+      Analyse statistique des mesures d’exposition électromagnétique issues d’un export Cartoradio
+    </p>
 
+    <div id="source-summary" class="source-summary">
+      <span id="source-name">Source : —</span>
+      <span id="source-row-count">Lignes : —</span>
+      <span id="source-period">Période : —</span>
+    </div>
+  </header>
+
+  <main class="app-main">
+    <section id="import-section" class="card">
+      <h2>Chargement des données</h2>
+
+      <div id="file-import-block" class="import-block">
+        <label for="csv-file-input">Choisir un fichier CSV</label>
+        <input type="file" id="csv-file-input" accept=".csv,text/csv" />
+        <div id="drop-zone" class="drop-zone">Déposer un fichier CSV ici</div>
+      </div>
+
+      <div id="paste-import-block" class="import-block">
+        <label for="csv-text-input">Ou coller le contenu du CSV</label>
+        <textarea id="csv-text-input" rows="8" placeholder="Coller ici le contenu du fichier CSV..."></textarea>
+        <button id="analyze-pasted-csv-btn" type="button">Analyser le CSV collé</button>
+      </div>
+
+      <div id="import-actions" class="actions">
+        <button id="load-analyze-btn" type="button">Charger et analyser</button>
+        <button id="new-file-btn" type="button">Nouveau fichier</button>
+      </div>
+
+      <div id="import-message" class="message"></div>
+      <div id="import-error" class="message error"></div>
+    </section>
+
+    <section id="workspace" class="workspace hidden">
+      <aside id="left-panel" class="left-panel">
+        <section id="filters-section" class="card">
+          <h2>Filtres des mesures</h2>
+
+          <div class="filter-group" id="filter-years">
+            <label for="year-min-input">Année min</label>
+            <input type="number" id="year-min-input" />
+
+            <label for="year-max-input">Année max</label>
+            <input type="number" id="year-max-input" />
+          </div>
+
+          <div class="filter-group" id="filter-location">
+            <label for="measure-location-select">Lieu de mesure</label>
+            <select id="measure-location-select">
+              <option value="indifferent">Indifférent</option>
+              <option value="interieur">En intérieur</option>
+              <option value="exterieur">En extérieur</option>
+            </select>
+          </div>
+
+          <div class="filter-group" id="filter-environment">
+            <label for="environment-select">Type d’environnement</label>
+            <select id="environment-select"></select>
+          </div>
+
+          <div class="filter-group" id="filter-laboratory">
+            <label for="laboratory-select">Laboratoire</label>
+            <select id="laboratory-select"></select>
+          </div>
+
+          <div class="filter-group" id="filter-casb">
+            <label for="casb-select">Présence du Cas B</label>
+            <select id="casb-select">
+              <option value="indifferent">Indifférent</option>
+              <option value="exists">Cas B existe</option>
+              <option value="missing">Cas B n’existe pas</option>
+            </select>
+          </div>
+        </section>
+
+        <section id="threshold-section" class="card">
+          <h2>Filtre de robustesse Cas A</h2>
+
+          <div class="filter-group">
+            <input type="checkbox" id="casa-threshold-enabled" checked />
+            <label for="casa-threshold-enabled">Appliquer un seuil minimal sur Cas A</label>
+          </div>
+
+          <div class="filter-group">
+            <label for="casa-threshold-input">Seuil minimal Cas A (V/m)</label>
+            <input type="number" id="casa-threshold-input" step="0.01" min="0" value="0.1" />
+          </div>
+
+          <p id="threshold-help" class="help-text">
+            Les mesures Cas A inférieures au seuil sont exclues des statistiques.
+          </p>
+        </section>
+
+        <section id="analysis-variable-section" class="card">
+          <h2>Grandeur analysée</h2>
+
+          <div class="filter-group">
+            <label for="analysis-variable-select">Variable</label>
+            <select id="analysis-variable-select">
+              <option value="niveauGlobal">Exposition Cas A (V/m)</option>
+              <option value="cumulCasB">Cumul Cas B (V/m)</option>
+              <option value="ratioCasA_CasB">Cohérence Cas A / Cas B (%)</option>
+            </select>
+          </div>
+        </section>
+
+        <div id="filter-actions" class="actions">
+          <button id="apply-filters-btn" type="button">Actualiser l’analyse</button>
+          <button id="reset-filters-btn" type="button">Remise à zéro des filtres</button>
+        </div>
+      </aside>
+
+      <section id="right-panel" class="right-panel">
+        <section id="selection-summary-section" class="card">
+          <h2>Résumé de sélection</h2>
+
+          <div id="selection-summary" class="summary-grid">
+            <div class="summary-row"><span>Lignes du fichier</span><span id="summary-total-rows">—</span></div>
+            <div class="summary-row"><span>Lignes après filtres</span><span id="summary-filtered-rows">—</span></div>
+            <div class="summary-row"><span>Exclues par seuil Cas A</span><span id="summary-threshold-excluded">—</span></div>
+            <div class="summary-row"><span>Exclues pour invalidité</span><span id="summary-invalid-excluded">—</span></div>
+            <div class="summary-row"><span>Valeurs valides analysées</span><span id="summary-valid-values">—</span></div>
+          </div>
+        </section>
+
+        <section id="active-filters-section" class="card">
+          <h2>Filtres actifs</h2>
+          <div id="active-filters-summary">—</div>
+        </section>
+
+        <section id="stats-section" class="card">
+          <h2>Résultats statistiques</h2>
+          <div id="stats-cards" class="stats-grid"></div>
+        </section>
+
+        <div id="analysis-message" class="message"></div>
+        <div id="analysis-error" class="message error"></div>
+      </section>
+    </section>
+
+    <section id="graph-section" class="card hidden">
+      <h2>Histogramme</h2>
+
+      <section id="graph-controls-section">
+        <div id="graph-controls" class="graph-controls">
+          <div class="filter-group">
+            <label for="graph-mode-select">Mode d’affichage</label>
+            <select id="graph-mode-select">
+              <option value="auto">Automatique</option>
+              <option value="manual">Manuel</option>
+            </select>
+          </div>
+
+          <div class="filter-group">
+            <label for="graph-min-input">Borne min affichée</label>
+            <input type="number" id="graph-min-input" step="0.01" />
+          </div>
+
+          <div class="filter-group">
+            <label for="graph-max-input">Borne max affichée</label>
+            <input type="number" id="graph-max-input" step="0.01" />
+          </div>
+
+          <div class="filter-group">
+            <label for="graph-classes-input">Nombre de classes</label>
+            <input type="number" id="graph-classes-input" min="1" step="1" value="20" />
+          </div>
+
+          <div class="filter-group">
+            <label>Largeur de classe</label>
+            <output id="graph-class-width-output">—</output>
+          </div>
+        </div>
+      </section>
+
+      <div id="graph-actions" class="actions">
+        <button id="reset-graph-btn" type="button">Réinitialiser l’affichage</button>
+        <button id="export-png-btn" type="button">Exporter PNG</button>
+      </div>
+
+      <div id="exportable-graph-block" class="export-block">
+        <div id="graph-meta-box" class="graph-meta-box">
+          <div id="graph-title">—</div>
+          <div id="graph-source">—</div>
+          <div id="graph-analysis-meta">—</div>
+          <div id="graph-export-meta">—</div>
+        </div>
+
+        <div id="graph-summary" class="summary-grid">
+          <div class="summary-row"><span>Valeurs analysées</span><span id="graph-analysed-count">—</span></div>
+          <div class="summary-row"><span>Valeurs visibles</span><span id="graph-visible-count">—</span></div>
+          <div class="summary-row"><span>Valeurs hors plage</span><span id="graph-hidden-count">—</span></div>
+          <div class="summary-row"><span>Unité</span><span id="graph-unit">—</span></div>
+        </div>
+
+        <div id="chart-container" class="chart-container">
+          <canvas id="histogram-canvas" width="1000" height="500"></canvas>
+        </div>
+      </div>
+
+      <div id="graph-message" class="message"></div>
+      <div id="graph-error" class="message error"></div>
+    </section>
+  </main>
+
+  <script src="js/state.js"></script>
+  <script src="js/app.js"></script>
+</body>
+</html>
