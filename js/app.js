@@ -165,39 +165,52 @@ function onPastedCsvAnalyze() {
 }
 
 function loadAndAnalyze(csvText, sourceName) {
-  appState.rawCsvText = csvText;
-  appState.sourceName = sourceName;
+  clearMessages();
 
-  /* parseCsv(csvText) sera branché ici */
-  appState.data = [];
-  appState.columns = [];
-  appState.filterOptions = {
-    years: { min: null, max: null },
-    lieuxMesure: [],
-    environnements: [],
-    laboratoires: []
-  };
+  try {
+    const parseResult = parseCsv(csvText);
 
-  resetFiltersToDefault();
-  resetGraphToDefault();
-  syncStateToControls();
-  renderLoadedStub();
+    appState.rawCsvText = csvText;
+    appState.sourceName = sourceName;
+    appState.columns = parseResult.headers;
+    appState.data = parseResult.rows;
+    appState.filterOptions = {
+      years: getYearBoundsFromData(appState.data),
+      lieuxMesure: [],
+      environnements: [],
+      laboratoires: []
+    };
+
+    resetFiltersToDefault();
+    resetGraphToDefault();
+    syncStateToControls();
+    renderLoadedStub(parseResult);
+  } catch (error) {
+    renderEmptyState();
+    dom.importError.textContent = error.message || "Erreur de parsing du fichier CSV.";
+  }
 }
 
-function renderLoadedStub() {
+function renderLoadedStub(parseResult) {
   showLoadedLayout();
+
+  const yearBounds = getYearBoundsFromData(appState.data);
+  const periodText =
+    yearBounds.min != null && yearBounds.max != null
+      ? `${yearBounds.min} – ${yearBounds.max}`
+      : "—";
 
   dom.sourceName.textContent = `Source : ${appState.sourceName || "—"}`;
   dom.sourceRowCount.textContent = `Lignes : ${appState.data.length}`;
-  dom.sourcePeriod.textContent = "Période : —";
+  dom.sourcePeriod.textContent = `Période : ${periodText}`;
 
-  dom.summaryTotalRows.textContent = "0";
+  dom.summaryTotalRows.textContent = String(appState.data.length);
   dom.summaryFilteredRows.textContent = "0";
   dom.summaryThresholdExcluded.textContent = "0";
   dom.summaryInvalidExcluded.textContent = "0";
   dom.summaryValidValues.textContent = "0";
 
-  dom.activeFiltersSummary.textContent = "Aucun calcul encore disponible.";
+  dom.activeFiltersSummary.textContent = "CSV chargé. Les filtres métier seront branchés à l’étape suivante.";
   dom.statsCards.innerHTML = "";
 
   dom.graphTitle.textContent = "Histogramme — —";
@@ -210,9 +223,26 @@ function renderLoadedStub() {
   dom.graphUnit.textContent = "—";
   dom.graphClassWidthOutput.textContent = "—";
 
-  dom.importMessage.textContent = "Fichier chargé. Le parsing et les calculs seront branchés à l’étape suivante.";
+  dom.importMessage.textContent =
+    `Fichier chargé avec succès. ${appState.data.length} lignes normalisées` +
+    (parseResult.invalidRowCount > 0 ? `, ${parseResult.invalidRowCount} lignes ignorées.` : ".");
 
   clearCanvas();
+}
+
+function getYearBoundsFromData(rows) {
+  const years = rows
+    .map(row => row.annee)
+    .filter(year => Number.isFinite(year));
+
+  if (years.length === 0) {
+    return { min: null, max: null };
+  }
+
+  return {
+    min: Math.min(...years),
+    max: Math.max(...years)
+  };
 }
 
 function syncStateToControls() {
