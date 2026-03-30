@@ -942,6 +942,13 @@ function getVariableUnit(variable) {
   return "V/m";
 }
 
+function getVariableAxisLabel(variable) {
+  if (variable === "ratioCasA_CasB") {
+    return "(Cas A - Cas B) / Cas A en %";
+  }
+  return getVariableUnit(variable);
+}
+
 function formatNumber(value, decimals = 2) {
   if (!Number.isFinite(value)) {
     return "—";
@@ -1128,7 +1135,7 @@ function drawHistogramPreview(histogram, stats, variable) {
         x: {
           title: {
             display: true,
-            text: unit
+            text: getVariableAxisLabel(variable)
           },
           ticks: {
             autoSkip: true,
