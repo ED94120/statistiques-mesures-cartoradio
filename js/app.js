@@ -608,27 +608,40 @@ function buildActiveFiltersText() {
 function buildShortGraphMeta() {
   const parts = [];
 
-  if (
-    Number.isFinite(appState.filters.anneeMin) &&
-    Number.isFinite(appState.filters.anneeMax)
-  ) {
-    parts.push(`${appState.filters.anneeMin}–${appState.filters.anneeMax}`);
-  }
+  parts.push(
+    `Période : ${appState.filters.anneeMin ?? "—"}–${appState.filters.anneeMax ?? "—"}`
+  );
 
   if (appState.filters.lieuMesure === "interieur") {
-    parts.push("En intérieur");
+    parts.push("Lieu : En intérieur");
   } else if (appState.filters.lieuMesure === "exterieur") {
-    parts.push("En extérieur");
+    parts.push("Lieu : En extérieur");
   } else {
-    parts.push("Lieu indifférent");
+    parts.push("Lieu : Indifférent");
   }
 
+  parts.push(
+    `Environnement : ${
+      appState.filters.environnement === "tous"
+        ? "Tous"
+        : appState.filters.environnement
+    }`
+  );
+
+  parts.push(
+    `Laboratoire : ${
+      appState.filters.laboratoire === "tous"
+        ? "Tous"
+        : appState.filters.laboratoire
+    }`
+  );
+
   if (appState.filters.casB === "exists") {
-    parts.push("Cas B existe");
+    parts.push("Cas B : existe");
   } else if (appState.filters.casB === "missing") {
-    parts.push("Cas B n’existe pas");
+    parts.push("Cas B : n’existe pas");
   } else {
-    parts.push("Cas B indifférent");
+    parts.push("Cas B : Indifférent");
   }
 
   if (appState.filters.seuilCasAActif) {
