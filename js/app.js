@@ -17,6 +17,8 @@ function cacheDomReferences() {
 
   dom.fileInput = document.getElementById("csv-file-input");
   dom.dropZone = document.getElementById("drop-zone");
+  dom.sampleCsvSelect = document.getElementById("sample-csv-select");
+  dom.loadSampleBtn = document.getElementById("load-sample-btn");
   dom.newFileBtn = document.getElementById("new-file-btn");
 
   dom.sourceName = document.getElementById("source-name");
@@ -81,6 +83,7 @@ function cacheDomReferences() {
 
 function bindEvents() {
   dom.fileInput.addEventListener("change", onFileSelected);
+  dom.loadSampleBtn.addEventListener("click", onLoadSampleClicked);
   dom.newFileBtn.addEventListener("click", onNewFile);
 
   dom.applyFiltersBtn.addEventListener("click", handleUiChange);
@@ -172,6 +175,32 @@ async function onFileSelected(event) {
   const file = event.target.files?.[0];
   if (!file) return;
   await loadFile(file);
+}
+
+async function onLoadSampleClicked() {
+  clearMessages();
+
+  const samplePath = dom.sampleCsvSelect.value;
+  if (!samplePath) {
+    dom.importError.textContent = "Aucun exemple CSV sélectionné.";
+    return;
+  }
+
+  try {
+    const response = await fetch(samplePath, { cache: "no-store" });
+
+    if (!response.ok) {
+      throw new Error(`Chargement impossible (${response.status}).`);
+    }
+
+    const csvText = await response.text();
+    const sampleName = samplePath.split("/").pop() || "Exemple CSV";
+
+    loadAndAnalyze(csvText, sampleName);
+  } catch (error) {
+    dom.importError.textContent =
+      error.message || "Impossible de charger le fichier d’exemple.";
+  }
 }
 
 async function loadFile(file) {
@@ -892,6 +921,7 @@ function onResetGraph() {
 function onNewFile() {
   resetState();
   dom.fileInput.value = "";
+  dom.sampleCsvSelect.value = "";
   renderEmptyState();
 }
 
