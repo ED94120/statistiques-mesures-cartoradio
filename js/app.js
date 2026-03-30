@@ -452,9 +452,58 @@ function buildGraphMarkersLegend(stats, variable) {
   return parts.join(" | ");
 }
 
+function computeBreakAt20(histogram) {
+  if (!histogram || !histogram.bins || histogram.bins.length < 2) {
+    return null;
+  }
+
+  const target = 20;
+  let beforeBin = null;
+  let at20Bin = null;
+
+  histogram.bins.forEach(bin => {
+    const isBefore20 = bin.x1 <= target;
+    const contains20 = bin.x0 <= target && target < bin.x1;
+    const startsAt20 = bin.x0 === target;
+
+    if (isBefore20) {
+      if (!beforeBin || bin.x1 > beforeBin.x1) {
+        beforeBin = bin;
+      }
+    }
+
+    if (contains20 || startsAt20) {
+      if (!at20Bin || bin.x0 < at20Bin.x0) {
+        at20Bin = bin;
+      }
+    }
+  });
+
+  if (!beforeBin || !at20Bin) {
+    return null;
+  }
+
+  if (beforeBin.count <= 0) {
+    return null;
+  }
+
+  const dropPercent =
+    ((beforeBin.count - at20Bin.count) / beforeBin.count) * 100;
+
+  return {
+    beforeLabel: `[${formatNumber(beforeBin.x0, 3)} ; ${formatNumber(beforeBin.x1, 3)}[`,
+    at20Label: `[${formatNumber(at20Bin.x0, 3)} ; ${formatNumber(at20Bin.x1, 3)}[`,
+    beforeCount: beforeBin.count,
+    at20Count: at20Bin.count,
+    dropPercent
+  };
+}
+
+
 function renderAnalysisPreview() {
   const stats = appState.results.stats;
   const histogram = appState.results.histogram;
+  const breakAt20 = computeBreakAt20(histogram);
 
   dom.summaryTotalRows.textContent = String(appState.results.counters.totalRows);
   dom.summaryFilteredRows.textContent = String(
@@ -512,7 +561,9 @@ function renderAnalysisPreview() {
     histogram && histogram.classWidth != null
       ? formatNumber(histogram.classWidth, 3)
       : "—";
-      dom.graphBreak20.textContent = "Calcul à venir";
+  dom.graphBreak20.textContent = breakAt20
+    ? `avant : ${breakAt20.beforeCount} | classe 20 % : ${breakAt20.at20Count} | chute : ${formatNumber(breakAt20.dropPercent, 1)} %`
+    : "Non calculable";
 
   drawHistogramPreview(histogram, stats, appState.analyse.variable);
 }
