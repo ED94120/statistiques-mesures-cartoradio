@@ -1223,12 +1223,13 @@ function drawHistogramPreview(histogram, stats, variable) {
     variable,
     histogram.nbClasses
   );
-
+  
   const visibleMaxCount = Math.max(...data, 0);
-
+  const defaultYAxisMax = Math.max(referenceYAxisMax * 1.08, visibleMaxCount * 1.08);
+  
   const yAxisMax = Number.isFinite(appState.graph.yDisplayMax)
     ? appState.graph.yDisplayMax
-    : referenceYAxisMax;
+    : defaultYAxisMax;
 
   histogramChart = new Chart(ctx, {
     type: "bar",
