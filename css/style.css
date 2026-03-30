@@ -81,10 +81,15 @@ button {
 .drop-zone {
   margin-top: 10px;
   padding: 20px;
-  border: 2px dashed #98a2b3;
   border-radius: 8px;
-  background: #fafafa;
+  background: #cfeecf;
+  border: 2px dashed #76a976;
   text-align: center;
+}
+
+.drop-zone-title,
+.drop-zone-subtitle {
+  color: #234423;
 }
 
 .summary-grid {
@@ -231,4 +236,22 @@ button {
 
 #sample-csv-select {
   min-width: 260px;
+}
+
+.sample-import-actions {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-start;
+  gap: 10px;
+}
+
+.sample-import-actions select {
+  width: 100%;
+  box-sizing: border-box;
+}
+
+.sample-import-actions button,
+#import-actions button {
+  width: 220px;
+  box-sizing: border-box;
 }
