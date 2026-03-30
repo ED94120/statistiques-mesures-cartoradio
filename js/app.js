@@ -1036,7 +1036,7 @@ function zoomYAxis(factor) {
 
   let newMax = currentMax * factor;
 
-  const minAllowedMax = Math.max(referenceMax * 0.005, 1);
+  const minAllowedMax = Math.max(referenceMax * 0.001, 0.2);
   const maxAllowedMax = referenceMax;
 
   newMax = Math.max(newMax, minAllowedMax);
