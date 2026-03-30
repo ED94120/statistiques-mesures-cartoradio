@@ -217,3 +217,18 @@ button {
 #apply-filters-btn:hover {
   background: #cfeccc;
 }
+
+.sample-import-block {
+  margin-top: 18px;
+}
+
+.sample-import-actions {
+  display: flex;
+  gap: 10px;
+  align-items: center;
+  flex-wrap: wrap;
+}
+
+#sample-csv-select {
+  min-width: 260px;
+}
