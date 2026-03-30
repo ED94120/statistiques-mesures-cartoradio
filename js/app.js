@@ -682,6 +682,50 @@ function onTooltipPinChange() {
   }
 }
 
+function hidePinnedTooltip() {
+  pinnedTooltipIndex = null;
+
+  if (!histogramChart) {
+    return;
+  }
+
+  histogramChart.setActiveElements([]);
+
+  if (histogramChart.tooltip) {
+    histogramChart.tooltip.setActiveElements([], { x: 0, y: 0 });
+  }
+
+  histogramChart.update();
+}
+
+function showPinnedTooltip(index) {
+  if (!histogramChart) {
+    return;
+  }
+
+  const meta = histogramChart.getDatasetMeta(0);
+  const barElement = meta?.data?.[index];
+
+  if (!barElement) {
+    return;
+  }
+
+  const position = barElement.getCenterPoint();
+
+  histogramChart.setActiveElements([
+    { datasetIndex: 0, index }
+  ]);
+
+  if (histogramChart.tooltip) {
+    histogramChart.tooltip.setActiveElements(
+      [{ datasetIndex: 0, index }],
+      position
+    );
+  }
+
+  histogramChart.update();
+}
+
 function onResetFilters() {
   resetFiltersToDefault();
   syncStateToControls();
@@ -1079,6 +1123,8 @@ function getReferenceHistogramMaxCount(values, variable, nbClasses) {
 }
 
 function drawHistogramPreview(histogram, stats, variable) {
+  const previousPinnedIndex = tooltipPinned ? pinnedTooltipIndex : null;
+
   destroyHistogramChart();
 
   const canvas = dom.histogramCanvas;
@@ -1138,11 +1184,31 @@ function drawHistogramPreview(histogram, stats, variable) {
       responsive: true,
       maintainAspectRatio: false,
       animation: false,
+      onClick(event, elements, chart) {
+        if (!tooltipPinned) {
+          return;
+        }
+
+        if (!elements || elements.length === 0) {
+          return;
+        }
+
+        const clickedIndex = elements[0].index;
+
+        if (pinnedTooltipIndex === clickedIndex) {
+          hidePinnedTooltip();
+          return;
+        }
+
+        pinnedTooltipIndex = clickedIndex;
+        showPinnedTooltip(clickedIndex);
+      },
       plugins: {
         legend: {
           display: false
         },
-        tooltip: {
+                tooltip: {
+          enabled: true,
           callbacks: {
             title(items) {
               if (!items || items.length === 0) return "";
@@ -1158,6 +1224,21 @@ function drawHistogramPreview(histogram, stats, variable) {
                 `Effectif : ${count}`,
                 `Fréquence : ${percent} %`
               ];
+            }
+          },
+          external(context) {
+            if (!tooltipPinned || pinnedTooltipIndex == null) {
+              return;
+            }
+
+            const tooltip = context.tooltip;
+
+            if (!tooltip) {
+              return;
+            }
+
+            if (tooltip.opacity === 0) {
+              showPinnedTooltip(pinnedTooltipIndex);
             }
           }
         }
@@ -1192,6 +1273,25 @@ function drawHistogramPreview(histogram, stats, variable) {
       }
     }
   });
+
+  if (
+    tooltipPinned &&
+    previousPinnedIndex != null &&
+    histogram.bins &&
+    previousPinnedIndex >= 0 &&
+    previousPinnedIndex < histogram.bins.length
+  ) {
+    pinnedTooltipIndex = previousPinnedIndex;
+    showPinnedTooltip(previousPinnedIndex);
+  } else if (!tooltipPinned) {
+    pinnedTooltipIndex = null;
+  } else if (
+    pinnedTooltipIndex != null &&
+    (!histogram.bins || pinnedTooltipIndex >= histogram.bins.length)
+  ) {
+    pinnedTooltipIndex = null;
+  }
+  
   if (visibleMaxCount > yAxisMax) {
     dom.graphMessage.textContent =
       "Attention : l’échelle verticale est amplifiée. Une ou plusieurs colonnes dépassent la hauteur affichée.";
