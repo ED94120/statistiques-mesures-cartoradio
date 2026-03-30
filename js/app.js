@@ -80,6 +80,7 @@ function cacheDomReferences() {
   dom.graphVisibleCount = document.getElementById("graph-visible-count");
   dom.graphHiddenCount = document.getElementById("graph-hidden-count");
   dom.graphUnit = document.getElementById("graph-unit");
+  dom.graphBreak20 = document.getElementById("graph-break-20");
 
   dom.histogramCanvas = document.getElementById("histogram-canvas");
 }
@@ -156,6 +157,7 @@ function renderEmptyState() {
   dom.graphHiddenCount.textContent = "—";
   dom.graphUnit.textContent = "—";
   dom.graphClassWidthOutput.textContent = "—";
+  dom.graphBreak20.textContent = "—";
   if (dom.tooltipPinCheckbox) {
     dom.tooltipPinCheckbox.checked = false;
   }
@@ -510,6 +512,7 @@ function renderAnalysisPreview() {
     histogram && histogram.classWidth != null
       ? formatNumber(histogram.classWidth, 3)
       : "—";
+      dom.graphBreak20.textContent = "Calcul à venir";
 
   drawHistogramPreview(histogram, stats, appState.analyse.variable);
 }
