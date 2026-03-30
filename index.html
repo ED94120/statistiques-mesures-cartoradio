@@ -37,11 +37,26 @@
         <div id="file-import-block" class="import-block import-block-primary">
           <label for="csv-file-input" class="file-input-label">Choisir un fichier CSV</label>
           <input type="file" id="csv-file-input" accept=".csv,text/csv" />
-
+      
           <div id="drop-zone" class="drop-zone">
             <div class="drop-zone-content">
               <div class="drop-zone-title">Déposer un fichier CSV ici</div>
               <div class="drop-zone-subtitle">ou utilisez le sélecteur de fichier ci-dessus</div>
+            </div>
+          </div>
+      
+          <div class="sample-import-block">
+            <label for="sample-csv-select">Ou charger un exemple CSV</label>
+            <div class="sample-import-actions">
+              <select id="sample-csv-select">
+                <option value="">Choisir un exemple</option>
+                <option value="samples/Lille_N6266_2026-03-27.csv">Lille</option>
+                <option value="samples/Lyon_N12320_2026-03-27.csv">Lyon</option>
+                <option value="samples/Marseille_N10063_2026-03-27.csv">Marseille</option>
+                <option value="samples/Paris_N30141_2026-03-27.csv">Paris</option>
+                <option value="samples/Strasbourg_N4068_2026-03-27.csv">Strasbourg</option>
+              </select>
+              <button id="load-sample-btn" type="button">Charger l’exemple</button>
             </div>
           </div>
         </div>
