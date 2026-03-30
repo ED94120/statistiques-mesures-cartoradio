@@ -16,6 +16,9 @@ function computeStats(values, variable) {
     p90: computePercentile(sortedValues, 0.90),
     p95: computePercentile(sortedValues, 0.95),
     p98: computePercentile(sortedValues, 0.98),
+    percentCasASuperieurCasB: variable === "ratioCasA_CasB"
+      ? computePercentGreaterThanZero(cleanValues)
+      : null,
     rms: isVmVariable(variable) ? computeRms(cleanValues) : null
   };
 }
@@ -34,6 +37,7 @@ function createEmptyStatsResult() {
     p90: null,
     p95: null,
     p98: null,
+    percentCasASuperieurCasB: null,
     rms: null
   };
 }
@@ -92,6 +96,16 @@ function computeMean(values) {
 function computeRms(values) {
   const sumSquares = values.reduce((acc, value) => acc + value * value, 0);
   return Math.sqrt(sumSquares / values.length);
+}
+
+function computePercentGreaterThanZero(values) {
+  if (!values || values.length === 0) {
+    return null;
+  }
+
+  const countGreaterThanZero = values.filter(value => value > 0).length;
+
+  return (countGreaterThanZero / values.length) * 100;
 }
 
 function isVmVariable(variable) {
