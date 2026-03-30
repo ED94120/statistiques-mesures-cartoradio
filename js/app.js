@@ -604,6 +604,7 @@ function buildStatsCardsHtml(stats, variable) {
 
   const unit = getVariableUnit(variable);
   const showRms = isVmVariable(variable);
+  const showPercentCasASuperieurCasB = variable === "ratioCasA_CasB";
 
   return `
     <div class="stat-card">
@@ -638,6 +639,16 @@ function buildStatsCardsHtml(stats, variable) {
       <span class="stat-label">P98</span>
       <span class="stat-value">${formatStatValue(stats.p98, unit)}</span>
     </div>
+    ${
+      showPercentCasASuperieurCasB
+        ? `
+    <div class="stat-card">
+      <span class="stat-label">% Cas A > Cas B</span>
+      <span class="stat-value">${formatStatValue(stats.percentCasASuperieurCasB, "%")}</span>
+    </div>
+    `
+        : ""
+    }
     ${
       showRms
         ? `
