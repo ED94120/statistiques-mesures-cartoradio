@@ -1,5 +1,7 @@
 const dom = {};
 let histogramChart = null;
+let tooltipPinned = false;
+let pinnedTooltipIndex = null;
 
 document.addEventListener("DOMContentLoaded", initApp);
 
@@ -58,6 +60,7 @@ function cacheDomReferences() {
   dom.graphMaxInput = document.getElementById("graph-max-input");
   dom.graphClassesInput = document.getElementById("graph-classes-input");
   dom.graphClassWidthOutput = document.getElementById("graph-class-width-output");
+  dom.tooltipPinCheckbox = document.getElementById("tooltip-pin-checkbox");
   dom.panLeftBtn = document.getElementById("pan-left-btn");
   dom.panRightBtn = document.getElementById("pan-right-btn");
   dom.zoomInBtn = document.getElementById("zoom-in-btn");
@@ -93,6 +96,7 @@ function bindEvents() {
   dom.graphMinInput.addEventListener("change", handleGraphChange);
   dom.graphMaxInput.addEventListener("change", handleGraphChange);
   dom.graphClassesInput.addEventListener("change", handleGraphChange);
+  dom.tooltipPinCheckbox.addEventListener("change", onTooltipPinChange);
   dom.panLeftBtn.addEventListener("click", onPanLeft);
   dom.panRightBtn.addEventListener("click", onPanRight);
   dom.zoomInBtn.addEventListener("click", onZoomIn);
@@ -152,7 +156,12 @@ function renderEmptyState() {
   dom.graphHiddenCount.textContent = "—";
   dom.graphUnit.textContent = "—";
   dom.graphClassWidthOutput.textContent = "—";
-
+  if (dom.tooltipPinCheckbox) {
+    dom.tooltipPinCheckbox.checked = false;
+  }
+  tooltipPinned = false;
+  pinnedTooltipIndex = null;
+  
   clearMessages();
   clearCanvas();
 }
@@ -229,6 +238,12 @@ function loadAndAnalyze(csvText, sourceName) {
 
     resetFiltersToDefault();
     resetGraphToDefault();
+
+    tooltipPinned = false;
+    pinnedTooltipIndex = null;
+    if (dom.tooltipPinCheckbox) {
+      dom.tooltipPinCheckbox.checked = false;
+    }
 
     populateDynamicFilterControls();
     syncStateToControls();
@@ -648,6 +663,22 @@ function handleGraphChange() {
   } catch (error) {
     dom.graphError.textContent =
       error.message || "Erreur pendant le recalcul de l’histogramme.";
+  }
+}
+
+function onTooltipPinChange() {
+  tooltipPinned = dom.tooltipPinCheckbox.checked;
+
+  if (!tooltipPinned) {
+    pinnedTooltipIndex = null;
+
+    if (histogramChart) {
+      histogramChart.setActiveElements([]);
+      if (histogramChart.tooltip) {
+        histogramChart.tooltip.setActiveElements([], { x: 0, y: 0 });
+      }
+      histogramChart.update();
+    }
   }
 }
 
