@@ -265,3 +265,22 @@ button {
   padding: 0;
   margin-top: 6px;
 }
+
+#download-sample-link {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  min-width: 220px;
+  padding: 10px 14px;
+  box-sizing: border-box;
+  border: 1px solid #888;
+  background: #f5f5f5;
+  color: #111;
+  text-decoration: none;
+  cursor: pointer;
+}
+
+#download-sample-link[aria-disabled="true"] {
+  opacity: 0.5;
+  pointer-events: none;
+}
