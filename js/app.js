@@ -22,6 +22,7 @@ function cacheDomReferences() {
   dom.sampleCsvSelect = document.getElementById("sample-csv-select");
   dom.loadSampleBtn = document.getElementById("load-sample-btn");
   dom.newFileBtn = document.getElementById("new-file-btn");
+  dom.downloadSampleLink = document.getElementById("download-sample-link");
 
   dom.sourceName = document.getElementById("source-name");
   dom.sourceRowCount = document.getElementById("source-row-count");
@@ -89,6 +90,7 @@ function bindEvents() {
   dom.fileInput.addEventListener("change", onFileSelected);
   dom.loadSampleBtn.addEventListener("click", onLoadSampleClicked);
   dom.newFileBtn.addEventListener("click", onNewFile);
+  dom.sampleCsvSelect.addEventListener("change", updateSampleDownloadLink);
 
   dom.applyFiltersBtn.addEventListener("click", handleUiChange);
   dom.resetFiltersBtn.addEventListener("click", onResetFilters);
@@ -214,6 +216,27 @@ async function onLoadSampleClicked() {
   }
 }
 
+function updateSampleDownloadLink() {
+  if (!dom.downloadSampleLink) {
+    return;
+  }
+
+  const samplePath = dom.sampleCsvSelect?.value || "";
+
+  if (!samplePath) {
+    dom.downloadSampleLink.setAttribute("href", "#");
+    dom.downloadSampleLink.setAttribute("aria-disabled", "true");
+    dom.downloadSampleLink.removeAttribute("download");
+    return;
+  }
+
+  const fileName = samplePath.split("/").pop() || "exemple.csv";
+
+  dom.downloadSampleLink.setAttribute("href", samplePath);
+  dom.downloadSampleLink.setAttribute("download", fileName);
+  dom.downloadSampleLink.setAttribute("aria-disabled", "false");
+}
+
 async function loadFile(file) {
   clearMessages();
 
@@ -305,6 +328,7 @@ function syncStateToControls() {
   dom.graphMaxInput.value = appState.graph.max ?? "";
   dom.graphClassesInput.value = appState.graph.nbClasses;
   updateGraphModeUi();
+  updateSampleDownloadLink();
 }
 
 function syncControlsToState() {
