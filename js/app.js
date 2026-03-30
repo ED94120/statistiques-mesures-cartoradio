@@ -936,11 +936,11 @@ function getDefaultGraphRangeForZoom(values, variable) {
 }
 
 function onZoomYIn() {
-  zoomYAxis(0.67);
+  zoomYAxis(0.85);
 }
 
 function onZoomYOut() {
-  zoomYAxis(1 / 0.67);
+  zoomYAxis(1 / 0.85);
 }
 
 function onResetYAxis() {
@@ -969,7 +969,7 @@ function zoomYAxis(factor) {
 
   let newMax = currentMax * factor;
 
-  const minAllowedMax = Math.max(referenceMax * 0.02, 5);
+  const minAllowedMax = Math.max(referenceMax * 0.005, 1);
   const maxAllowedMax = referenceMax;
 
   newMax = Math.max(newMax, minAllowedMax);
