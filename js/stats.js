@@ -13,6 +13,9 @@ function computeStats(values, variable) {
     max: computeMax(sortedValues),
     median: computeMedian(sortedValues),
     mean: computeMean(cleanValues),
+    p90: computePercentile(sortedValues, 0.90),
+    p95: computePercentile(sortedValues, 0.95),
+    p98: computePercentile(sortedValues, 0.98),
     rms: isVmVariable(variable) ? computeRms(cleanValues) : null
   };
 }
@@ -28,6 +31,9 @@ function createEmptyStatsResult() {
     max: null,
     median: null,
     mean: null,
+    p90: null,
+    p95: null,
+    p98: null,
     rms: null
   };
 }
@@ -49,6 +55,33 @@ function computeMedian(sortedValues) {
   }
 
   return (sortedValues[mid - 1] + sortedValues[mid]) / 2;
+}
+
+function computePercentile(sortedValues, p) {
+  const n = sortedValues.length;
+
+  if (n === 0) {
+    return null;
+  }
+
+  if (n === 1) {
+    return sortedValues[0];
+  }
+
+  const position = (n - 1) * p;
+  const lowerIndex = Math.floor(position);
+  const upperIndex = Math.ceil(position);
+
+  if (lowerIndex === upperIndex) {
+    return sortedValues[lowerIndex];
+  }
+
+  const weight = position - lowerIndex;
+
+  return (
+    sortedValues[lowerIndex] * (1 - weight) +
+    sortedValues[upperIndex] * weight
+  );
 }
 
 function computeMean(values) {
