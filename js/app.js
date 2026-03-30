@@ -595,12 +595,24 @@ function buildStatsCardsHtml(stats, variable) {
       <span class="stat-value">${formatStatValue(stats.max, unit)}</span>
     </div>
     <div class="stat-card">
-      <span class="stat-label">Médiane</span>
+      <span class="stat-label">Mediane</span>
       <span class="stat-value">${formatStatValue(stats.median, unit)}</span>
     </div>
     <div class="stat-card">
       <span class="stat-label">Moyenne</span>
       <span class="stat-value">${formatStatValue(stats.mean, unit)}</span>
+    </div>
+    <div class="stat-card">
+      <span class="stat-label">P90</span>
+      <span class="stat-value">${formatStatValue(stats.p90, unit)}</span>
+    </div>
+    <div class="stat-card">
+      <span class="stat-label">P95</span>
+      <span class="stat-value">${formatStatValue(stats.p95, unit)}</span>
+    </div>
+    <div class="stat-card">
+      <span class="stat-label">P98</span>
+      <span class="stat-value">${formatStatValue(stats.p98, unit)}</span>
     </div>
     ${
       showRms
