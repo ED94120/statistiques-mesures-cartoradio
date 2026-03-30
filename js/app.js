@@ -933,7 +933,7 @@ function onExportPng() {
 function getVariableLabel(variable) {
   if (variable === "niveauGlobal") return "Exposition Cas A";
   if (variable === "cumulCasB") return "Cumul Cas B";
-  if (variable === "ratioCasA_CasB") return "Cohérence Cas A / Cas B";
+  if (variable === "ratioCasA_CasB") return "Cohérence (Cas A - Cas B) / Cas A";
   return "Grandeur inconnue";
 }
 
