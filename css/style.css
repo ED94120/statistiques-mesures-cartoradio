@@ -289,3 +289,18 @@ button {
   color: #0b5ed7;
   font-weight: 600;
 }
+
+.export-hidden-block {
+  position: absolute;
+  left: -99999px;
+  top: 0;
+  width: 1100px;
+  background: #ffffff;
+  z-index: -1;
+}
+
+#export-png-title {
+  font-size: 1.5rem;
+  font-weight: 700;
+  margin-bottom: 16px;
+}
