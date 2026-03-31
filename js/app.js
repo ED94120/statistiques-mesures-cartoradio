@@ -1205,9 +1205,43 @@ function onNewFile() {
   renderEmptyState();
 }
 
-function onExportPng() {
-  dom.graphMessage.textContent =
-    "L’export PNG sera branché après le rendu du graphique.";
+async function onExportPng() {
+  clearMessages();
+
+  if (!appState.results.histogram || !appState.results.histogram.bins || appState.results.histogram.bins.length === 0) {
+    dom.graphError.textContent = "Aucun histogramme disponible à exporter.";
+    return;
+  }
+
+  if (!dom.exportPngHiddenBlock) {
+    dom.graphError.textContent = "Zone d export PNG introuvable.";
+    return;
+  }
+
+  try {
+    const canvas = await html2canvas(dom.exportPngHiddenBlock, {
+      backgroundColor: "#ffffff",
+      scale: 2,
+      useCORS: true
+    });
+
+    const link = document.createElement("a");
+    const safeSourceName = (appState.sourceName || "source")
+      .replace(/\.[^.]+$/, "")
+      .replace(/[^\w\-]+/g, "_");
+
+    const fileName =
+      `histogramme_${appState.analyse.variable}_${safeSourceName}.png`;
+
+    link.href = canvas.toDataURL("image/png");
+    link.download = fileName;
+    link.click();
+
+    dom.graphMessage.textContent = "Export PNG réalisé.";
+  } catch (error) {
+    dom.graphError.textContent =
+      error.message || "Erreur pendant l export PNG.";
+  }
 }
 
 function getVariableLabel(variable) {
