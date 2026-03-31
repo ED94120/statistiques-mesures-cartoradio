@@ -83,6 +83,28 @@ function cacheDomReferences() {
   dom.graphUnit = document.getElementById("graph-unit");
   dom.graphBreak20 = document.getElementById("graph-break-20");
 
+  dom.exportPngHiddenBlock = document.getElementById("export-png-hidden-block");
+  dom.exportPngTitle = document.getElementById("export-png-title");
+  dom.exportPngMode = document.getElementById("export-png-mode");
+  dom.exportPngMin = document.getElementById("export-png-min");
+  dom.exportPngMax = document.getElementById("export-png-max");
+  dom.exportPngClasses = document.getElementById("export-png-classes");
+  dom.exportPngClassWidth = document.getElementById("export-png-class-width");
+
+  dom.exportPngGraphTitle = document.getElementById("export-png-graph-title");
+  dom.exportPngGraphSource = document.getElementById("export-png-graph-source");
+  dom.exportPngGraphAnalysisMeta = document.getElementById("export-png-graph-analysis-meta");
+  dom.exportPngGraphMarkersLegend = document.getElementById("export-png-graph-markers-legend");
+  dom.exportPngGraphExportMeta = document.getElementById("export-png-graph-export-meta");
+
+  dom.exportPngAnalysedCount = document.getElementById("export-png-analysed-count");
+  dom.exportPngVisibleCount = document.getElementById("export-png-visible-count");
+  dom.exportPngHiddenCount = document.getElementById("export-png-hidden-count");
+  dom.exportPngUnit = document.getElementById("export-png-unit");
+  dom.exportPngBreak20 = document.getElementById("export-png-break-20");
+
+  dom.exportPngCanvas = document.getElementById("export-png-canvas");
+
   dom.histogramCanvas = document.getElementById("histogram-canvas");
 }
 
@@ -160,6 +182,26 @@ function renderEmptyState() {
   dom.graphUnit.textContent = "—";
   dom.graphClassWidthOutput.textContent = "—";
   dom.graphBreak20.textContent = "—";
+
+  dom.exportPngTitle.textContent = "Histogramme";
+  dom.exportPngMode.textContent = "—";
+  dom.exportPngMin.textContent = "—";
+  dom.exportPngMax.textContent = "—";
+  dom.exportPngClasses.textContent = "—";
+  dom.exportPngClassWidth.textContent = "—";
+
+  dom.exportPngGraphTitle.textContent = "—";
+  dom.exportPngGraphSource.textContent = "—";
+  dom.exportPngGraphAnalysisMeta.textContent = "—";
+  dom.exportPngGraphMarkersLegend.innerHTML = "—";
+  dom.exportPngGraphExportMeta.textContent = "—";
+
+  dom.exportPngAnalysedCount.textContent = "—";
+  dom.exportPngVisibleCount.textContent = "—";
+  dom.exportPngHiddenCount.textContent = "—";
+  dom.exportPngUnit.textContent = "—";
+  dom.exportPngBreak20.textContent = "—";
+  
   if (dom.tooltipPinCheckbox) {
     dom.tooltipPinCheckbox.checked = false;
   }
@@ -532,6 +574,43 @@ function computeBreakAt20(histogram) {
   };
 }
 
+function updateHiddenExportBlock(histogram, stats, breakAt20) {
+  dom.exportPngTitle.textContent = "Histogramme";
+
+  dom.exportPngMode.textContent =
+    appState.graph.mode === "auto" ? "Automatique" : "Manuel";
+
+  dom.exportPngMin.textContent =
+    histogram && Number.isFinite(histogram.graphMin)
+      ? formatNumber(histogram.graphMin, 3)
+      : "—";
+
+  dom.exportPngMax.textContent =
+    histogram && Number.isFinite(histogram.graphMax)
+      ? formatNumber(histogram.graphMax, 3)
+      : "—";
+
+  dom.exportPngClasses.textContent = Number.isFinite(appState.graph.nbClasses)
+    ? String(appState.graph.nbClasses)
+    : "—";
+
+  dom.exportPngClassWidth.textContent =
+    histogram && histogram.classWidth != null
+      ? formatNumber(histogram.classWidth, 3)
+      : "—";
+
+  dom.exportPngGraphTitle.textContent = dom.graphTitle.textContent;
+  dom.exportPngGraphSource.textContent = dom.graphSource.textContent;
+  dom.exportPngGraphAnalysisMeta.textContent = dom.graphAnalysisMeta.textContent;
+  dom.exportPngGraphMarkersLegend.innerHTML = dom.graphMarkersLegend.innerHTML;
+  dom.exportPngGraphExportMeta.textContent = dom.graphExportMeta.textContent;
+
+  dom.exportPngAnalysedCount.textContent = dom.graphAnalysedCount.textContent;
+  dom.exportPngVisibleCount.textContent = dom.graphVisibleCount.textContent;
+  dom.exportPngHiddenCount.textContent = dom.graphHiddenCount.textContent;
+  dom.exportPngUnit.textContent = dom.graphUnit.textContent;
+  dom.exportPngBreak20.textContent = dom.graphBreak20.textContent;
+}
 
 function renderAnalysisPreview() {
   const stats = appState.results.stats;
@@ -598,6 +677,7 @@ function renderAnalysisPreview() {
     ? `avant : ${breakAt20.beforeCount} | classe 20 % : ${breakAt20.at20Count} | chute : ${formatNumber(breakAt20.dropPercent, 1)} %`
     : "Non calculable";
 
+  updateHiddenExportBlock(histogram, stats, breakAt20);
   drawHistogramPreview(histogram, stats, appState.analyse.variable);
 }
 
