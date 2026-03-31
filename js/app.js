@@ -1,5 +1,6 @@
 const dom = {};
 let histogramChart = null;
+let exportPngChart = null;
 let tooltipPinned = false;
 let pinnedTooltipIndex = null;
 
@@ -679,6 +680,7 @@ function renderAnalysisPreview() {
 
   updateHiddenExportBlock(histogram, stats, breakAt20);
   drawHistogramPreview(histogram, stats, appState.analyse.variable);
+  drawExportPngHistogram(histogram, stats, appState.analyse.variable);
 }
 
 function buildStatsCardsHtml(stats, variable) {
@@ -1502,6 +1504,107 @@ function drawHistogramPreview(histogram, stats, variable) {
   }
 }
 
+function drawExportPngHistogram(histogram, stats, variable) {
+  destroyExportPngChart();
+
+  const canvas = dom.exportPngCanvas;
+  const ctx = canvas.getContext("2d");
+
+  ctx.clearRect(0, 0, canvas.width, canvas.height);
+
+  if (!histogram || !histogram.bins || histogram.bins.length === 0) {
+    ctx.fillStyle = "#666";
+    ctx.font = "16px Arial";
+    ctx.fillText("Aucune donnée à afficher.", 30, 40);
+    return;
+  }
+
+  const unit = getVariableUnit(variable);
+
+  const labels = histogram.bins.map((bin, index) => {
+    const min = formatNumber(bin.x0, 3);
+    const max = formatNumber(bin.x1, 3);
+    const isLastBin = index === histogram.bins.length - 1;
+
+    return isLastBin ? `[${min} ; ${max}]` : `[${min} ; ${max}[`;
+  });
+
+  const data = histogram.bins.map(bin => bin.count);
+
+  const referenceYAxisMax = getReferenceHistogramMaxCount(
+    appState.results.values,
+    variable,
+    histogram.nbClasses
+  );
+
+  const visibleMaxCount = Math.max(...data, 0);
+  const defaultYAxisMax = Math.max(referenceYAxisMax * 1.08, visibleMaxCount * 1.08);
+
+  const yAxisMax = Number.isFinite(appState.graph.yDisplayMax)
+    ? appState.graph.yDisplayMax
+    : defaultYAxisMax;
+
+  exportPngChart = new Chart(ctx, {
+    type: "bar",
+    data: {
+      labels,
+      datasets: [
+        {
+          label: "Effectif",
+          data,
+          backgroundColor: "rgba(143, 183, 255, 0.75)",
+          borderColor: "rgba(143, 183, 255, 1)",
+          borderWidth: 1,
+          barPercentage: 1.0,
+          categoryPercentage: 1.0
+        }
+      ]
+    },
+    plugins: [createHistogramMarkersPlugin(stats, histogram, variable)],
+    options: {
+      responsive: false,
+      maintainAspectRatio: false,
+      animation: false,
+      plugins: {
+        legend: {
+          display: false
+        },
+        tooltip: {
+          enabled: false
+        }
+      },
+      scales: {
+        x: {
+          title: {
+            display: true,
+            text: getVariableAxisLabel(variable)
+          },
+          ticks: {
+            autoSkip: true,
+            maxTicksLimit: 12,
+            maxRotation: 0,
+            minRotation: 0
+          },
+          grid: {
+            display: false
+          }
+        },
+        y: {
+          beginAtZero: true,
+          max: yAxisMax,
+          title: {
+            display: true,
+            text: "Effectif"
+          },
+          ticks: {
+            precision: 0
+          }
+        }
+      }
+    }
+  });
+}
+
 function drawVerticalMarker(ctx, histogram, value, color, label) {
   if (!Number.isFinite(value)) return;
   if (value < histogram.graphMin || value > histogram.graphMax) return;
@@ -1542,13 +1645,27 @@ function destroyHistogramChart() {
   }
 }
 
+function destroyExportPngChart() {
+  if (exportPngChart) {
+    exportPngChart.destroy();
+    exportPngChart = null;
+  }
+}
+
 function clearCanvas() {
   destroyHistogramChart();
+  destroyExportPngChart();
 
   const ctx = dom.histogramCanvas.getContext("2d");
   ctx.clearRect(0, 0, dom.histogramCanvas.width, dom.histogramCanvas.height);
   ctx.fillStyle = "#666";
   ctx.font = "16px Arial";
   ctx.fillText("Aucun histogramme affiché.", 30, 40);
+
+  const exportCtx = dom.exportPngCanvas.getContext("2d");
+  exportCtx.clearRect(0, 0, dom.exportPngCanvas.width, dom.exportPngCanvas.height);
+  exportCtx.fillStyle = "#666";
+  exportCtx.font = "16px Arial";
+  exportCtx.fillText("Aucun histogramme affiché.", 30, 40);
 }
 
