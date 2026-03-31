@@ -467,6 +467,15 @@ function buildGraphMarkersLegend(stats, variable) {
     `<span class="marker-label marker-label-mean">Moyenne : ${formatStatValue(stats.mean, unit)}</span>`
   ];
 
+  if (
+    variable === "ratioCasA_CasB" &&
+    Number.isFinite(stats.percentCasASuperieurCasB)
+  ) {
+    parts.push(
+      `<span class="marker-label marker-label-casa-superieur">% Cas A > Cas B : ${formatStatValue(stats.percentCasASuperieurCasB, "%")}</span>`
+    );
+  }
+
   if (isVmVariable(variable) && Number.isFinite(stats.rms)) {
     parts.push(
       `<span class="marker-label marker-label-rms">RMS : ${formatStatValue(stats.rms, unit)}</span>`
