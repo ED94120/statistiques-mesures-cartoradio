@@ -284,3 +284,8 @@ button {
   opacity: 0.5;
   pointer-events: none;
 }
+
+.marker-label-casa-superieur {
+  color: #0b5ed7;
+  font-weight: 600;
+}
