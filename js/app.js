@@ -83,6 +83,7 @@ function cacheDomReferences() {
   dom.graphHiddenCount = document.getElementById("graph-hidden-count");
   dom.graphUnit = document.getElementById("graph-unit");
   dom.graphBreak20 = document.getElementById("graph-break-20");
+  dom.graphBreak20Row = document.getElementById("graph-break-20-row");
 
   dom.exportPngHiddenBlock = document.getElementById("export-png-hidden-block");
   dom.exportPngTitle = document.getElementById("export-png-title");
@@ -103,6 +104,7 @@ function cacheDomReferences() {
   dom.exportPngHiddenCount = document.getElementById("export-png-hidden-count");
   dom.exportPngUnit = document.getElementById("export-png-unit");
   dom.exportPngBreak20 = document.getElementById("export-png-break-20");
+  dom.exportPngBreak20Row = document.getElementById("export-png-break-20-row");
 
   dom.exportPngCanvas = document.getElementById("export-png-canvas");
 
@@ -183,6 +185,7 @@ function renderEmptyState() {
   dom.graphUnit.textContent = "—";
   dom.graphClassWidthOutput.textContent = "—";
   dom.graphBreak20.textContent = "—";
+  dom.graphBreak20Row?.classList.add("hidden");
 
   dom.exportPngTitle.textContent = "Histogramme";
   dom.exportPngMode.textContent = "—";
@@ -202,6 +205,7 @@ function renderEmptyState() {
   dom.exportPngHiddenCount.textContent = "—";
   dom.exportPngUnit.textContent = "—";
   dom.exportPngBreak20.textContent = "—";
+  dom.exportPngBreak20Row?.classList.add("hidden");
   
   if (dom.tooltipPinCheckbox) {
     dom.tooltipPinCheckbox.checked = false;
@@ -610,7 +614,17 @@ function updateHiddenExportBlock(histogram, stats, breakAt20) {
   dom.exportPngVisibleCount.textContent = dom.graphVisibleCount.textContent;
   dom.exportPngHiddenCount.textContent = dom.graphHiddenCount.textContent;
   dom.exportPngUnit.textContent = dom.graphUnit.textContent;
-  dom.exportPngBreak20.textContent = dom.graphBreak20.textContent;
+  const showBreak20 = Number.isFinite(appState.filters.anneeMin) && appState.filters.anneeMin > 2013;
+
+  if (showBreak20) {
+    dom.exportPngBreak20Row?.classList.remove("hidden");
+    dom.exportPngBreak20.textContent = breakAt20
+      ? `avant : ${breakAt20.beforeCount} | classe 20 % : ${breakAt20.at20Count} | chute : ${formatNumber(breakAt20.dropPercent, 1)} %`
+      : "Non calculable";
+  } else {
+    dom.exportPngBreak20Row?.classList.add("hidden");
+    dom.exportPngBreak20.textContent = "—";
+  }
 }
 
 function renderAnalysisPreview() {
@@ -674,9 +688,17 @@ function renderAnalysisPreview() {
     histogram && histogram.classWidth != null
       ? formatNumber(histogram.classWidth, 3)
       : "—";
-  dom.graphBreak20.textContent = breakAt20
-    ? `avant : ${breakAt20.beforeCount} | classe 20 % : ${breakAt20.at20Count} | chute : ${formatNumber(breakAt20.dropPercent, 1)} %`
-    : "Non calculable";
+  const showBreak20 = Number.isFinite(appState.filters.anneeMin) && appState.filters.anneeMin > 2013;
+  
+  if (showBreak20) {
+    dom.graphBreak20Row?.classList.remove("hidden");
+    dom.graphBreak20.textContent = breakAt20
+      ? `avant : ${breakAt20.beforeCount} | classe 20 % : ${breakAt20.at20Count} | chute : ${formatNumber(breakAt20.dropPercent, 1)} %`
+      : "Non calculable";
+  } else {
+    dom.graphBreak20Row?.classList.add("hidden");
+    dom.graphBreak20.textContent = "—";
+  }
 
   updateHiddenExportBlock(histogram, stats, breakAt20);
   drawHistogramPreview(histogram, stats, appState.analyse.variable);
